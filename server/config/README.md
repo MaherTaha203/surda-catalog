@@ -22,8 +22,9 @@ env (e.g. `VITE_*` for anything the client needs, server-only secrets for the re
 
 ## Planned contents
 
-- Connection settings for the database (host/URL, keys).
-- Storage bucket name + public base URL.
+- SQLite database file path.
+- Local uploads folder path + the public base URL Fastify serves it under.
+- Fastify host/port and any client-facing base URL.
 - Environment loading/validation (fail fast if required vars are missing).
 - A documented `.env.example` listing every required variable.
 

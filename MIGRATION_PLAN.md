@@ -7,6 +7,27 @@
 > Phase 2 (the current phase) only *prepares* the architecture — it removes nothing and
 > changes no functionality. Steps below are executed in **later** phases, strictly in order.
 
+## Official target architecture (decided)
+
+Blink will be replaced by a **self-hosted stack** — **not** Supabase or any managed cloud
+backend:
+
+- **Fastify** — the HTTP API server (`server/api/`), replacing `blink.db` / `blink.storage`.
+- **SQLite** — a single local database file holding the `products` table (`server/database/`).
+- **Local uploads folder** — product images stored on disk and served as static files by
+  Fastify (`server/storage/`); the served path is the `publicUrl` saved in
+  `products.imageUrl`.
+- **Offline-first PWA** — the existing client keeps its IndexedDB cache + service worker so
+  the catalog works with no connectivity.
+- **Automatic synchronization** — the two clients sync with the Fastify/SQLite server in the
+  background when online (`server/sync/`); offline edits reconcile on reconnect.
+- **Single administrator** — exactly one admin manages the catalog; no multi-user accounts.
+- **Two Android tablets** — the only target devices (PWA installed), one of which may also
+  act as the admin device.
+
+This deployment is small, local, and single-tenant by design. Authentication stays as the
+existing client-side PIN gate (audit §6); no managed-cloud auth is introduced.
+
 ## Ground truth (from the audit)
 
 Blink is used in three separable surfaces:
@@ -66,17 +87,18 @@ Order within the step:
   behavior change, making the final swap atomic.
 - **Exit criterion:** `blink.*` appears in exactly one file; all tests/flows unchanged.
 
-### Step 4 — Stand up the replacement backend
-1. Provision the new backend (recommended: **Supabase/Postgres**, per audit §11).
+### Step 4 — Stand up the replacement backend (**Fastify + SQLite + local uploads**)
+1. Scaffold the **Fastify** server (`server/api/`) and **SQLite** database (`server/database/`).
 2. Create the `products` table from `server/database/README.md` (preserve every field;
    `isHidden`/`sortOrder` numeric).
-3. Create the public image bucket per `server/storage/README.md`.
-4. Implement `server/api/` endpoints and `server/config/` env/secrets.
-- **Exit criterion:** backend reachable; endpoints return `Product`-shaped data.
+3. Create the local uploads folder per `server/storage/README.md` and serve it as static
+   files from Fastify (served path becomes `products.imageUrl`).
+4. Implement `server/api/` endpoints and `server/config/` env/connection settings.
+- **Exit criterion:** Fastify server runs locally; endpoints return `Product`-shaped data.
 
 ### Step 5 — Migrate data & images (`server/sync/`)
 1. Export products + images from Blink (`list()` or `src/lib/backup.ts`).
-2. Re-upload images to the new bucket; capture new public URLs.
+2. Copy images into the local uploads folder; capture their served public URLs.
 3. Insert rows with `imageUrl` rewritten; preserve `id`, `sortOrder`, `isHidden`,
    `createdAt`, `updatedAt`.
 4. Verify row counts and ordering match Blink. **Keep Blink read-only until verified.**

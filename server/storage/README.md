@@ -30,12 +30,13 @@ the storage layer just needs to serve stable public URLs.
 
 ## Migration of existing images
 
-The `sync/` layer will re-upload existing Blink-hosted images here and rewrite each
-product's `imageUrl`. `src/lib/backup.ts` already base64-embeds all product images in a
-JSON export and can act as a portable source for this migration.
+The `sync/` layer will copy existing Blink-hosted images into the local uploads folder and
+rewrite each product's `imageUrl`. `src/lib/backup.ts` already base64-embeds all product
+images in a JSON export and can act as a portable source for this migration.
 
 ## Notes
 
-- Public bucket model (matches Blink's `publicUrl`); keep URLs stable after cutover.
+- **Local uploads folder served by Fastify as static files** (decided architecture — no
+  cloud bucket). The served path is the `publicUrl`; keep paths stable after cutover.
 - The company logo (`localStorage['sarda_company_logo']`) is **not** uploaded through
   Blink today and is out of scope for this layer.

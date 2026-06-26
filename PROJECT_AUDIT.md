@@ -313,8 +313,8 @@ There are **three distinct Blink surfaces**: the **data SDK** (`@blinkdotnew/sdk
 
 | # | Blink dependency | Where | Classification | Rationale |
 |---|---|---|---|---|
-| 1 | `blink.db` (CRUD on `products`) | useProducts, admin, product.$id, AdminProductForm | **Required (functionality), Replaceable (implementation)** | The catalog cannot work without a data store. The *behavior* must be preserved, but the *provider* can be swapped (Supabase, REST API, SQLite/PostgREST, etc.). Surface is tiny: `list({orderBy})`, `get(id)`, `create`, `update`, `delete`. |
-| 2 | `blink.storage.upload` (product images) | AdminProductForm | **Required (functionality), Replaceable (implementation)** | Image upload must stay. Single call returning a public URL → trivially replaceable by Supabase Storage / S3 / any upload endpoint returning a URL. |
+| 1 | `blink.db` (CRUD on `products`) | useProducts, admin, product.$id, AdminProductForm | **Required (functionality), Replaceable (implementation)** | The catalog cannot work without a data store. The *behavior* must be preserved, but the *provider* can be swapped (the decided target is a local Fastify + SQLite API). Surface is tiny: `list({orderBy})`, `get(id)`, `create`, `update`, `delete`. |
+| 2 | `blink.storage.upload` (product images) | AdminProductForm | **Required (functionality), Replaceable (implementation)** | Image upload must stay. Single call returning a public URL → trivially replaceable by a Fastify upload endpoint that saves to the local uploads folder and returns the served file URL. |
 | 3 | `blink.auth` | — | **Can be removed** | Never used. The client sets `authRequired: false`; no auth calls exist. Dropping auth config changes nothing functionally. |
 | 4 | `@blinkdotnew/sdk` `createClient` + `blink/client.ts` | client.ts | **Replaceable** | Only exists to provide #1–#3. Replace with a thin data-access module wrapping the new backend. |
 | 5 | `@blinkdotnew/ui` — `toast` / `Toaster` | root, admin, form, (unused hook) | **Replaceable** | Toast notifications are used in real paths. `react-hot-toast` is already a dependency and offers an equivalent `toast`/`Toaster`; swap is mechanical. |
@@ -342,8 +342,13 @@ There are **three distinct Blink surfaces**: the **data SDK** (`@blinkdotnew/sdk
 3. **Migrate UI and data independently.** They are separable; do the lower-risk UI/toast/tagger removals first, then the data backend.
 4. **Keep the PIN gate as-is** initially — it is local and Blink-independent. (Optionally harden later; not required to remove Blink.)
 
-### Recommended target backend
-**Supabase** is the lowest-friction replacement: it provides a Postgres table (`products`), Storage with public URLs (matching the current `publicUrl` model), and a JS client with `select().order()`, `insert`, `update`, `delete` that maps almost 1:1 onto the current calls. (A Supabase MCP server is available in this environment.) Any REST/SQLite-backed API would also satisfy the contract — the abstraction in Step 2 keeps this decision reversible.
+### Target backend (decided architecture)
+The replacement is a **self-hosted Fastify + SQLite stack with a local uploads folder** —
+**not** a managed cloud backend. See `MIGRATION_PLAN.md` for the authoritative decision.
+- **Fastify** serves a small HTTP API exposing the same CRUD surface (`GET/POST/PATCH/DELETE /products`, `POST /uploads`).
+- **SQLite** holds the single `products` table in a local database file; `SELECT … ORDER BY sortOrder`, `INSERT`, `UPDATE`, `DELETE` map 1:1 onto the current calls.
+- **Local uploads folder** stores product images on disk, served by Fastify as static files; the served path becomes the `publicUrl` saved in `products.imageUrl` (matching today's model).
+- Deployment is **single-administrator**, **offline-first PWA** on **two Android tablets**, with **automatic synchronization** to the server when online. Auth stays the client-side PIN gate (§6). The data-access abstraction in Step 2 keeps the implementation swappable.
 
 ### Phased path (safest order)
 
@@ -365,9 +370,9 @@ There are **three distinct Blink surfaces**: the **data SDK** (`@blinkdotnew/sdk
 - *Checkpoint:* `blink.db`/`blink.storage` appear in exactly one file. All routes/components are Blink-agnostic.
 
 **Phase D — Stand up the replacement backend and migrate data**
-- D1. Create the `products` table on the new backend with the exact columns from §8 (including `isHidden` as integer, `sortOrder` as integer, `createdAt`/`updatedAt` defaults). Create a public Storage bucket for `products/` images.
-- D2. **Data migration:** export current products from Blink (the `list` call, or the existing `lib/backup.ts` JSON export which already base64-embeds images) and import rows + re-upload images to the new bucket, rewriting each `imageUrl` to the new public URL. `lib/backup.ts` is a ready-made portability tool for this.
-- D3. Implement a **new adapter** behind the same repository interface from Phase C (e.g. Supabase client: `from('products').select().order('sortOrder')`, `insert`, `update`, `delete`; storage `upload` → `getPublicUrl`).
+- D1. Create the `products` table in **SQLite** with the exact columns from §8 (including `isHidden` as integer, `sortOrder` as integer, `createdAt`/`updatedAt` defaults). Create the **local uploads folder** for `products/` images, served as static files by Fastify.
+- D2. **Data migration:** export current products from Blink (the `list` call, or the existing `lib/backup.ts` JSON export which already base64-embeds images) and import rows + copy images into the local uploads folder, rewriting each `imageUrl` to the new served URL. `lib/backup.ts` is a ready-made portability tool for this.
+- D3. Implement a **new adapter** behind the same repository interface from Phase C, talking to the **Fastify** API (`GET /products` ordered by `sortOrder`, `POST`/`PATCH`/`DELETE /products`, `POST /uploads` → served file URL).
 
 **Phase E — Cut over and remove Blink core**
 - E1. Switch the repository to the new adapter (single import change). Keep the IndexedDB offline cache (`offline-db.ts`) untouched — it already wraps whatever the repo returns, so offline support is preserved automatically.

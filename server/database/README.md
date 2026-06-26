@@ -42,8 +42,9 @@ must preserve every field and its semantics:
 - The `Product` TypeScript contract in `src/types/product.ts` is the source of truth;
   the schema must serialize to it 1:1.
 
-## Candidate backend
+## Backend (decided)
 
-`PROJECT_AUDIT.md` §11 recommends **Supabase (Postgres)** as the lowest-friction target
-because its `select().order()` / `insert` / `update` / `delete` map almost 1:1 onto the
-current Blink calls. Any SQL/REST store satisfying the contract is acceptable.
+The store is **SQLite** — a single local database file (see `MIGRATION_PLAN.md`). Its
+`SELECT … ORDER BY sortOrder` / `INSERT` / `UPDATE` / `DELETE` map almost 1:1 onto the
+current Blink calls, and a local file fits the single-administrator, offline-first,
+two-tablet deployment. The Fastify API (`server/api/`) is the only writer to this database.
