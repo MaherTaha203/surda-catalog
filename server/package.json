@@ -3,15 +3,13 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "Fastify + SQLite backend foundation for the Sarda catalog (Blink replacement). Not connected to the frontend yet.",
+  "description": "Fastify + SQLite backend for the Sarda product catalog.",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
-    "migrate": "tsx src/migrate.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@blinkdotnew/sdk": "^2.6.2",
     "@fastify/cors": "^10.0.2",
     "@fastify/multipart": "^9.0.3",
     "@fastify/static": "^8.0.4",
