@@ -24,6 +24,7 @@ import {
   type NewProduct,
   type ProductUpdate,
 } from '../services/products.ts';
+import { StorageService } from '../services/storage.ts';
 
 interface ProductIdParams {
   id: string;
@@ -58,6 +59,7 @@ function buildPatch(body: Record<string, unknown>): ProductUpdate {
 const productsRoutes: FastifyPluginAsync = async (fastify) => {
   // `fastify.db` is decorated by the database plugin, registered before this one.
   const products = new ProductsService(fastify.db);
+  const storage = new StorageService();
 
   // ── GET /products ──────────────────────────────────────────────────────────
   fastify.get('/products', async (_request, reply) => {
@@ -152,10 +154,13 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.delete<{ Params: ProductIdParams }>('/products/:id', async (request, reply) => {
     const { id } = request.params;
     try {
+      const existing = products.get(id);
       const removed = products.delete(id);
       if (!removed) {
         return reply.code(404).send({ error: 'Not Found', message: `Product '${id}' not found` });
       }
+      // Remove the product's local image file, if any.
+      await storage.deleteByUrl(existing?.imageUrl);
       return reply.code(204).send();
     } catch (err) {
       fastify.log.error(err, `failed to delete product '${id}'`);
