@@ -39,7 +39,7 @@ export function AdminProductRow({
       {/* Thumbnail */}
       <div className="w-14 h-14 rounded-lg bg-muted overflow-hidden shrink-0">
         {product.imageUrl ? (
-          <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+          <img src={product.imageUrl} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
         ) : (
           <div className="flex items-center justify-center w-full h-full text-muted-foreground"><Package size={20} /></div>
         )}
