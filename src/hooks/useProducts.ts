@@ -1,22 +1,27 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { blink } from '@/blink/client';
 import type { Product, ProductCategory } from '@/types/product';
 import { saveProductsToCache, getCachedProducts } from '@/lib/offline-db';
 
 const PRODUCTS_KEY = ['products'];
 
+// Data source: the Fastify API (was Blink). The API's GET /products returns the
+// same Product[] JSON Blink returned (ordered by sortOrder asc), so the rest of
+// this hook — search, categories, counts, offline cache — is unchanged.
+// Override the API origin with VITE_API_URL (default: local server on :4000).
+const API_BASE_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:4000').replace(/\/+$/, '');
+
 async function fetchProducts(): Promise<Product[]> {
   try {
-    const items = await blink.db.table<Product>('products').list({
-      orderBy: { sortOrder: 'asc' },
-    });
+    const res = await fetch(`${API_BASE_URL}/products`);
+    if (!res.ok) throw new Error(`API responded ${res.status}`);
+    const items = (await res.json()) as Product[];
     const products = items || [];
     // Cache for offline
     saveProductsToCache(products).catch(() => {});
     return products;
   } catch {
-    // Offline fallback
+    // API unavailable → show the existing offline cache
     return getCachedProducts();
   }
 }
