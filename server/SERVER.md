@@ -45,8 +45,18 @@ curl http://localhost:4000/health
 | `DELETE` | `/products/:id` | Delete → 204 / 404. |
 | `PATCH` | `/products/:id/visibility` | Body `{ isHidden }` or `{ hidden }` → 200 / 404. |
 | `PATCH` | `/products/:id/order` | Body `{ sortOrder }` → 200 / 404. |
+| `POST` | `/upload` | multipart `file` → 201 `{ url, filename, bytes }`. `?oldImageUrl=` deletes the replaced image. |
+| `GET` | `/uploads/products/:file` | Static image serving. |
 
-All routes go through `ProductsService` — no SQL lives in route handlers.
+All product routes go through `ProductsService` and image/file logic through
+`StorageService` — no SQL lives in route handlers.
+
+### Image upload
+`POST /upload` (multipart, field `file`) validates **mime type**, **extension**, and
+**size** (`UPLOAD_MAX_BYTES`, default 5 MB), stores the image under
+`server/uploads/products/` with a unique UUID filename, and returns its local URL
+`/uploads/products/<file>`. Pass `?oldImageUrl=/uploads/products/<old>` to delete the
+previous image when replacing. Deleting a product also deletes its image file.
 
 ## Automatic database initialization
 On boot, `src/plugins/database.ts` calls `initDatabase()` which:
