@@ -1,0 +1,79 @@
+# Sarda Catalog — Backend foundation (Fastify + SQLite)
+
+> **Phase 3 status:** foundation only. The server boots, auto-creates the SQLite
+> database + `products` table, and exposes a single `GET /health` endpoint.
+> **Blink is untouched and the frontend is NOT connected.**
+
+## Stack
+- **Fastify 5** — HTTP server.
+- **SQLite via `node:sqlite`** — Node 22's built-in driver (no native build step).
+- **TypeScript**, run directly with **tsx** (no compile step needed to start).
+
+## Run
+
+From the repository root:
+
+```bash
+npm run server
+```
+
+This installs the server's dependencies (first run) and starts it. Equivalently,
+from inside `server/`:
+
+```bash
+npm install
+npm start      # or: npm run dev   (watch mode)
+```
+
+The server listens on **http://0.0.0.0:4000** by default.
+
+### Verify
+```bash
+curl http://localhost:4000/health
+# {"status":"ok"}
+```
+
+## Automatic database initialization
+On boot, `src/plugins/database.ts` calls `initDatabase()` which:
+1. Creates **`catalog.db`** in the server's working directory if it does not exist.
+2. Creates the **`products`** table (and indexes) if missing — idempotent.
+
+The database file is **git-ignored** (it is data, regenerated on first run).
+Override its location with `CATALOG_DB_PATH`.
+
+### `products` table
+Uses **exactly** the fields Blink uses today (see `PROJECT_AUDIT.md` §8 and
+`src/types/product.ts`) — nothing invented:
+
+`id, name, description, size, cartonQuantity, cartonPrice, imageUrl, category,
+isHidden, sortOrder, createdAt, updatedAt`.
+
+## Environment variables
+| Var | Default | Purpose |
+|---|---|---|
+| `PORT` | `4000` | Listen port. |
+| `HOST` | `0.0.0.0` | Listen host. |
+| `CATALOG_DB_PATH` | `./catalog.db` | SQLite file path. |
+| `LOG_LEVEL` | `info` | Fastify log level. |
+
+## Layout
+```
+server/
+├── package.json, tsconfig.json, .gitignore
+└── src/
+    ├── index.ts              # entry — starts listening
+    ├── app.ts                # Fastify factory (registers plugins + routes)
+    ├── routes/
+    │   └── health.ts         # GET /health -> { status: "ok" }
+    ├── plugins/
+    │   └── database.ts       # decorates fastify.db; auto-inits catalog.db
+    ├── database/
+    │   ├── index.ts          # open/create DB + run schema
+    │   └── schema.ts         # products table DDL (exact Blink fields)
+    └── services/
+        └── products.ts       # data-access foundation (NOT wired to routes yet)
+```
+
+> Note: the top-level `server/{api,database,storage,sync,config}/README.md` files
+> from Phase 2 are forward-looking design docs. The runnable code lives here under
+> `server/src/`.
