@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Product, ProductCategory } from '@/types/product';
 import { saveProductsToCache, getCachedProducts } from '@/lib/offline-db';
@@ -41,29 +41,39 @@ export function useProducts() {
     });
   }, []);
 
-  const visibleProducts = products.filter((p) => Number(p.isHidden) === 0);
+  // Visibility filter + per-category counts depend only on `products` — memoize
+  // so typing in the search box doesn't recompute them on every keystroke.
+  const visibleProducts = useMemo(
+    () => products.filter((p) => Number(p.isHidden) === 0),
+    [products],
+  );
 
-  const filteredProducts = visibleProducts.filter((p) => {
-    const matchesCategory = selectedCategory === 'all' || p.category === selectedCategory;
-    if (!matchesCategory) return false;
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      p.name.toLowerCase().includes(q) ||
-      p.description.toLowerCase().includes(q) ||
-      p.size.toLowerCase().includes(q)
-    );
-  });
+  const filteredProducts = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return visibleProducts.filter((p) => {
+      const matchesCategory = selectedCategory === 'all' || p.category === selectedCategory;
+      if (!matchesCategory) return false;
+      if (!q) return true;
+      return (
+        p.name.toLowerCase().includes(q) ||
+        p.description.toLowerCase().includes(q) ||
+        p.size.toLowerCase().includes(q)
+      );
+    });
+  }, [visibleProducts, searchQuery, selectedCategory]);
 
   const refresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: PRODUCTS_KEY });
   }, [queryClient]);
 
-  const counts = {
-    all: visibleProducts.length,
-    'مواد التنظيف': visibleProducts.filter((p) => p.category === 'مواد التنظيف').length,
-    'أدوات التنظيف': visibleProducts.filter((p) => p.category === 'أدوات التنظيف').length,
-  };
+  const counts = useMemo(
+    () => ({
+      all: visibleProducts.length,
+      'مواد التنظيف': visibleProducts.filter((p) => p.category === 'مواد التنظيف').length,
+      'أدوات التنظيف': visibleProducts.filter((p) => p.category === 'أدوات التنظيف').length,
+    }),
+    [visibleProducts],
+  );
 
   return {
     products: filteredProducts,
