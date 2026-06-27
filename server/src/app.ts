@@ -23,6 +23,9 @@ export function buildApp(): FastifyInstance {
     logger: {
       level: process.env.LOG_LEVEL || 'info',
     },
+    // Be forgiving about a trailing slash so `/health` and `/health/` both match
+    // (a proxy or browser may append one) instead of returning a 404.
+    ignoreTrailingSlash: true,
   });
 
   // Security headers. CSP is disabled (this is a JSON/image API, not an HTML app)

@@ -32,6 +32,17 @@
   same output before mount. (Phase 13)
 - API requests use `cache: 'no-store'` (mutable resource). (Phase 9)
 
+### Post-release hardening (final pass)
+- **Transactions:** `ProductsService.reorder(items[])` applies all sortOrder changes in one
+  transaction; new atomic `PATCH /products/reorder` (admin sends one batch, not two updates).
+- **Security headers:** `@fastify/helmet` (nosniff, etc.); CSP off for this JSON/image API and
+  `Cross-Origin-Resource-Policy: cross-origin` so images load across origins.
+- **Upload content sniffing:** rejects a spoofed Content-Type/extension whose bytes aren't a
+  real JPEG/PNG/WEBP/GIF.
+- **Accessibility:** `aria-label`s on all icon-only controls; admin list error state with retry.
+- **Documentation:** full `docs/` set; accurate root README; removed obsolete files.
+- **Cleanup:** removed empty Phase-2 scaffolding folders and redundant planning READMEs.
+
 ---
 
 ## 2. Architecture (final)
@@ -102,8 +113,13 @@ auto-creates on first boot.
 | Visibility | ✅ hide / show (isHidden) |
 | Responsive layout | ✅ renders on 390 px mobile viewport |
 | Hydration | ✅ no hydration errors on `/`, `/catalog`, `/admin` |
+| Security headers | ✅ helmet (nosniff; CORP cross-origin) |
+| Atomic reorder | ✅ single-transaction batch |
+| Upload content validation | ✅ spoofed payload rejected (400) |
+| Accessibility | ✅ icon-only controls have accessible names |
 
-All checks performed in a real Chromium browser against the live API.
+All checks performed via server-level `app.inject` tests and a real Chromium browser against
+the live API.
 
 ---
 
