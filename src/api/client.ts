@@ -61,6 +61,20 @@ export function resolveImageUrl(url: string): string {
   return url;
 }
 
+/**
+ * Derive a product's thumbnail URL from its (full) image URL, by convention:
+ * `…/uploads/products/<file>` → `…/uploads/thumbs/<file>`. Returns the input
+ * unchanged when it isn't a local upload path (e.g. legacy/remote URLs), so
+ * callers can fall back to the full image.
+ */
+export function resolveThumbUrl(imageUrl: string): string {
+  if (!imageUrl) return imageUrl;
+  const resolved = resolveImageUrl(imageUrl);
+  return resolved.includes('/uploads/products/')
+    ? resolved.replace('/uploads/products/', '/uploads/thumbs/')
+    : resolved;
+}
+
 /** Convert a (possibly absolute) image URL back to the canonical relative form. */
 export function toStoredImageUrl(url: string): string {
   if (!url) return url;

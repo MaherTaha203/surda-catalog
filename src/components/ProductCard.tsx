@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
 import { Package } from 'lucide-react';
 import type { Product } from '@/types/product';
+import { resolveThumbUrl } from '@/api/client';
 
 interface ProductCardProps {
   product: Product;
@@ -9,6 +10,9 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product, index }: ProductCardProps) {
+  // Catalog uses the lightweight thumbnail; if it's missing (e.g. a legacy
+  // image uploaded before thumbnails existed), fall back to the full image.
+  const thumbUrl = resolveThumbUrl(product.imageUrl);
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -25,10 +29,16 @@ export function ProductCard({ product, index }: ProductCardProps) {
         <div className="relative aspect-[4/3] bg-muted overflow-hidden">
           {product.imageUrl ? (
             <img
-              src={product.imageUrl}
+              src={thumbUrl}
               alt={product.name}
               loading="lazy"
               decoding="async"
+              onError={(e) => {
+                // Thumbnail missing → fall back to the full image (guard against loops).
+                if (e.currentTarget.src !== product.imageUrl) {
+                  e.currentTarget.src = product.imageUrl;
+                }
+              }}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-400"
             />
           ) : (
