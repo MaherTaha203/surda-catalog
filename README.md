@@ -17,12 +17,17 @@ dependency on Blink.
 npm run server                 # installs server deps, then starts on :4000
 #   or:  cd server && npm install && npm run dev
 
-# 2) Frontend (point it at the API)
-VITE_API_URL=http://localhost:4000 npm install
-VITE_API_URL=http://localhost:4000 npm run dev      # Vite on :3000
+# 2) Frontend (zero-config in dev — Vite proxies API calls to :4000)
+npm install
+npm run dev                       # Vite on :3000
+#   API on a different port?  VITE_DEV_API_PROXY=http://localhost:4077 npm run dev
 ```
 
 Open http://localhost:3000 — default PINs: **`1234`** (display) / **`4321`** (admin).
+
+> The frontend calls the API with **same-origin relative paths** (e.g. `/products`).
+> In dev, Vite proxies them to the local API; in production serve the API on the same
+> origin, or set `VITE_API_URL` to the API origin for a split-origin deployment.
 
 ## Build (production)
 
