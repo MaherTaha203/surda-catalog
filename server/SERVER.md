@@ -48,6 +48,33 @@ Uses **exactly** the fields Blink uses today (see `PROJECT_AUDIT.md` §8 and
 `id, name, description, size, cartonQuantity, cartonPrice, imageUrl, category,
 isHidden, sortOrder, createdAt, updatedAt`.
 
+## Data migration (Blink → SQLite + local images)
+
+```bash
+npm run migrate
+```
+
+Reads every product from Blink, upserts them into SQLite (preserving `id` and all
+field values), downloads each product image into `server/uploads/products/`, and
+rewrites `imageUrl` to the local path `/uploads/products/<file>`. Blink is only
+**read**, never modified.
+
+It is **idempotent** — products upsert by primary key (no duplicates) and images are
+skipped when already downloaded. It prints a summary:
+
+```
+Products migrated: 44
+Images downloaded: 29
+Skipped: 0
+```
+
+**Offline / backup source:** set `MIGRATE_SOURCE_FILE=/path/to/products.json` to
+migrate from a JSON array (e.g. a `src/lib/backup.ts` export) instead of calling
+Blink — useful when Blink's host is blocked by network egress rules.
+
+> Live Blink reads require the host `core.blink.new` (and the image host) to be in
+> the environment's network egress allowlist; otherwise use `MIGRATE_SOURCE_FILE`.
+
 ## Environment variables
 | Var | Default | Purpose |
 |---|---|---|
@@ -55,6 +82,10 @@ isHidden, sortOrder, createdAt, updatedAt`.
 | `HOST` | `0.0.0.0` | Listen host. |
 | `CATALOG_DB_PATH` | `./catalog.db` | SQLite file path. |
 | `LOG_LEVEL` | `info` | Fastify log level. |
+| `UPLOADS_DIR` | `./uploads/products` | Where migration stores downloaded images. |
+| `UPLOADS_PUBLIC_PREFIX` | `/uploads/products` | Path prefix written into `imageUrl`. |
+| `MIGRATE_SOURCE_FILE` | _(unset)_ | Migrate from a JSON file instead of Blink. |
+| `VITE_BLINK_PROJECT_ID` / `VITE_BLINK_PUBLISHABLE_KEY` | frontend defaults | Blink read credentials. |
 
 ## Layout
 ```
