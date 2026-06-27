@@ -46,18 +46,21 @@ curl http://localhost:4000/health
 | `PATCH` | `/products/:id/visibility` | Body `{ isHidden }` or `{ hidden }` → 200 / 404. |
 | `PATCH` | `/products/:id/order` | Body `{ sortOrder }` → 200 / 404. |
 | `PATCH` | `/products/reorder` | Body `{ items: [{ id, sortOrder }] }` → 200, atomic. |
-| `POST` | `/upload` | multipart `file` → 201 `{ url, filename, bytes }`. `?oldImageUrl=` deletes the replaced image. |
+| `POST` | `/upload` | multipart `file` → 201 `{ url, thumbUrl, filename, bytes, originalBytes }`. Sharp → WebP full (q82) + 400px thumb (q80). `?oldImageUrl=` deletes the replaced image + thumb. |
 | `GET` | `/uploads/products/:file` | Static image serving. |
 
 All product routes go through `ProductsService` and image/file logic through
 `StorageService` — no SQL lives in route handlers.
 
-### Image upload
-`POST /upload` (multipart, field `file`) validates **mime type**, **extension**, and
-**size** (`UPLOAD_MAX_BYTES`, default 5 MB), stores the image under
-`server/uploads/products/` with a unique UUID filename, and returns its local URL
-`/uploads/products/<file>`. Pass `?oldImageUrl=/uploads/products/<old>` to delete the
-previous image when replacing. Deleting a product also deletes its image file.
+### Image upload & processing
+`POST /upload` (multipart, field `file`) validates **size** (`UPLOAD_MAX_BYTES`,
+default **50 MB**) and **magic bytes** (the extension is never trusted), then
+processes the image with **Sharp**: auto-orient from EXIF → strip metadata → WebP
+(full q82). A **400 px WebP thumbnail (q80)** is also generated. Both files share a
+UUID name — full under `server/uploads/products/`, thumb under
+`server/uploads/thumbs/`. Pass `?oldImageUrl=/uploads/products/<old>` to delete the
+previous image + thumbnail when replacing. Deleting a product also deletes its
+image + thumbnail. Invalid/corrupt image data is rejected with `400`.
 
 ## Automatic database initialization
 On boot, `src/plugins/database.ts` calls `initDatabase()` which:
@@ -80,9 +83,10 @@ isHidden, sortOrder, createdAt, updatedAt`.
 | `HOST` | `0.0.0.0` | Listen host. |
 | `CATALOG_DB_PATH` | `./catalog.db` | SQLite file path. |
 | `LOG_LEVEL` | `info` | Fastify log level. |
-| `UPLOADS_DIR` | `./uploads/products` | Where uploaded images are stored. |
+| `UPLOADS_DIR` | `./uploads/products` | Where full images are stored. |
+| `UPLOADS_THUMBS_DIR` | `./uploads/thumbs` | Where thumbnails are stored. |
 | `UPLOADS_PUBLIC_PREFIX` | `/uploads/products` | Path prefix written into `imageUrl`. |
-| `UPLOAD_MAX_BYTES` | `5242880` | Max image upload size (5 MB). |
+| `UPLOAD_MAX_BYTES` | `52428800` | Max image upload size (50 MB). |
 | `CORS_ORIGIN` | reflect any | Comma-separated allowed origins. |
 
 ## Layout

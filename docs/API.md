@@ -61,14 +61,26 @@ Body `{ "items": [ { "id": "...", "sortOrder": 0 }, … ] }`.
 `200 → Product[]` (new order) · `400` if `items` missing/empty.
 
 ### `POST /upload`
-`multipart/form-data`, field **`file`**. Validates mime type, extension, size
-(`UPLOAD_MAX_BYTES`, default 5 MB) **and file magic bytes** (must be a real
-JPEG/PNG/WEBP/GIF). Stores under `server/uploads/products/` with a UUID filename.
-Optional query `?oldImageUrl=/uploads/products/<old>` deletes the previous image.
-`201 → { url, filename, bytes }` · `400` (bad type/content) · `413` (too large).
+`multipart/form-data`, field **`file`**. Validates size (`UPLOAD_MAX_BYTES`,
+default **50 MB**) **and file magic bytes** (never trusts the extension; must be a
+real JPEG/PNG/WEBP/GIF). The image is processed with **Sharp**: auto-orient from
+EXIF → strip metadata → **WebP** (full q82). A **400 px thumbnail** (WebP q80) is
+also generated. Files share one UUID name: full at `uploads/products/<id>.webp`,
+thumb at `uploads/thumbs/<id>.webp`. Optional query
+`?oldImageUrl=/uploads/products/<old>` deletes the previous image **and its
+thumbnail**.
+`201 → { url, thumbUrl, filename, bytes, originalBytes }` · `400` (bad/invalid
+image) · `413` (too large).
 
-### `GET /uploads/products/:file`
-Static image serving (`@fastify/static`).
+> The frontend additionally compresses large photos client-side
+> (browser-image-compression: longest side → 2000 px, WebP q0.82, Web Worker)
+> before upload, so the network usually carries a small file.
+
+### `GET /uploads/products/:file` · `GET /uploads/thumbs/:file`
+Static image serving (`@fastify/static` over the whole `uploads/` base). The
+catalog uses thumbnails (with a fallback to the full image); product details use
+the full image. The thumbnail URL is derivable from the full URL by convention
+(`/products/` → `/thumbs/`), so the Product model is unchanged.
 
 ## Error shape
 Non-2xx responses are `{ "error": "<Reason>", "message": "<detail>" }` (except `204`).

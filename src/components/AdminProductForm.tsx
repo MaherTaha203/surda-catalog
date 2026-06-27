@@ -3,7 +3,17 @@ import { motion } from 'framer-motion';
 import { X, Plus, Upload, Check } from 'lucide-react';
 import { toast } from '@blinkdotnew/ui';
 import { createProduct, updateProduct, uploadProductImage } from '@/api/products';
+import { compressProductImage, ImageValidationError } from '@/lib/image-compression';
 import type { Product, ProductCategory } from '@/types/product';
+
+type UploadStatus = 'idle' | 'preparing' | 'compressing' | 'uploading' | 'processing' | 'completed';
+
+const STATUS_LABEL: Record<Exclude<UploadStatus, 'idle' | 'completed'>, string> = {
+  preparing: 'جاري التحضير...',
+  compressing: 'جاري الضغط...',
+  uploading: 'جاري الرفع...',
+  processing: 'جاري المعالجة...',
+};
 
 interface FormData {
   name: string;
@@ -43,7 +53,8 @@ export function AdminProductForm({ open, editingProduct, productCount, onClose, 
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState(editingProduct?.imageUrl || '');
-  const [uploading, setUploading] = useState(false);
+  const [status, setStatus] = useState<UploadStatus>('idle');
+  const busy = status !== 'idle' && status !== 'completed';
 
   const uploadImage = useCallback(
     async (file: File): Promise<string> => {
@@ -55,11 +66,29 @@ export function AdminProductForm({ open, editingProduct, productCount, onClose, 
 
   const handleSubmit = async () => {
     if (!form.name.trim()) { toast.error('يرجى إدخال اسم المنتج'); return; }
-    setUploading(true);
     try {
       let imageUrl = editingProduct?.imageUrl || '';
-      if (imageFile) imageUrl = await uploadImage(imageFile);
+      if (imageFile) {
+        // Prepare → compress (in a Web Worker) → upload.
+        setStatus('preparing');
+        let fileToUpload = imageFile;
+        try {
+          setStatus('compressing');
+          fileToUpload = await compressProductImage(imageFile);
+        } catch (e: unknown) {
+          if (e instanceof ImageValidationError) {
+            toast.error(e.message);
+            setStatus('idle');
+            return;
+          }
+          throw e;
+        }
+        setStatus('uploading');
+        imageUrl = await uploadImage(fileToUpload);
+      }
 
+      // Server-side processing of the product record.
+      setStatus('processing');
       const data: Record<string, unknown> = {
         name: form.name.trim(),
         description: form.description.trim(),
@@ -79,11 +108,11 @@ export function AdminProductForm({ open, editingProduct, productCount, onClose, 
         await createProduct(data);
         toast.success('تم إضافة المنتج');
       }
+      setStatus('completed');
       onSaved();
     } catch (e: unknown) {
       toast.error((e as Error).message || 'حدث خطأ');
-    } finally {
-      setUploading(false);
+      setStatus('idle');
     }
   };
 
@@ -172,10 +201,10 @@ export function AdminProductForm({ open, editingProduct, productCount, onClose, 
           </div>
           {/* Submit */}
           <button type="button" onClick={handleSubmit}
-            disabled={uploading || !form.name.trim()}
+            disabled={busy || !form.name.trim()}
             className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold text-base hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2">
-            {uploading ? (
-              <><div className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" /> جاري الرفع...</>
+            {busy ? (
+              <><div className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" /> {STATUS_LABEL[status as Exclude<UploadStatus, 'idle' | 'completed'>]}</>
             ) : editingProduct ? (
               <><Check size={18} /> حفظ التعديلات</>
             ) : (

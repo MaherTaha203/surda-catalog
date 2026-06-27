@@ -2,10 +2,14 @@
  * Image upload route.
  *
  *   POST /upload   (multipart/form-data, field: "file")
- *     -> 201 { url, filename, bytes }
+ *     -> 201 { url, thumbUrl, filename, bytes, originalBytes }
+ *
+ * The image is processed to WebP (full q82 + a 400px thumbnail q80) by
+ * StorageService. `url` is the full image (stored as the product's imageUrl);
+ * `thumbUrl` is additive and also derivable from `url`.
  *
  * Optional `?oldImageUrl=/uploads/products/<old>` deletes the previous image
- * after the new one is stored (used when replacing a product's image).
+ * (and its thumbnail) after the new one is stored (used when replacing).
  *
  * Validation (mime / extension / size) and all filesystem work live in
  * StorageService — the route only orchestrates.
