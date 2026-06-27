@@ -1,0 +1,18 @@
+# Server dependencies & build output
+node_modules
+dist
+
+# SQLite database files (auto-created on first run; never commit data)
+catalog.db
+catalog.db-journal
+catalog.db-wal
+catalog.db-shm
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Logs / env
+*.log
+.env
+.env.local
