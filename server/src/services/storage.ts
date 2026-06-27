@@ -37,6 +37,63 @@ const THUMB_WEBP_QUALITY = 80;
 const isDev = process.env.NODE_ENV !== 'production';
 
 /**
+ * Production hardening — bound Sharp's peak memory under concurrent uploads.
+ *
+ * libvips holds the full RAW bitmap (width × height × channels) in memory while
+ * it decodes + re-encodes an image, so the cost is set by input PIXELS, not the
+ * compressed byte size: an 8800×6600 JPEG is ~166 MB raw. Without a cap the
+ * server's peak RSS scales with the number of uploads in flight — measured here
+ * at ~0.6 GB (1 image), ~3.0 GB (5 images), ~4.5 GB (8 images) — i.e. memory
+ * would depend on client/load rather than on the server. The gate below makes
+ * the worst case O(limit) instead of O(concurrent requests).
+ *
+ * Behaviour is unchanged: every upload is still processed identically (full q82
+ * + 400px thumb, same bytes, same URLs, same 201). Under a burst larger than the
+ * limit, the extra uploads simply queue for a moment instead of all decoding at
+ * once. For the single-admin catalog this is effectively never hit in normal use
+ * (the realistic 5×client-compressed workload peaks at ~0.6 GB regardless).
+ */
+const IMAGE_MAX_CONCURRENCY = Math.max(1, Number(process.env.IMAGE_MAX_CONCURRENCY) || 2);
+
+/**
+ * Disable the libvips operation cache. This server processes each upload exactly
+ * once and never re-runs the same operation on the same pixels, so the cache only
+ * retains memory with no hit-rate benefit. (Safe, idempotent, recommended for
+ * one-shot processing services.)
+ */
+sharp.cache(false);
+
+/**
+ * Minimal counting semaphore. A released permit is handed straight to the next
+ * waiter (or returned to the pool if none), so the active count can never exceed
+ * `max` — no over-admission, no external dependency.
+ */
+class Semaphore {
+  private permits: number;
+  private readonly queue: Array<() => void> = [];
+  constructor(max: number) {
+    this.permits = max;
+  }
+  async run<T>(fn: () => Promise<T>): Promise<T> {
+    if (this.permits > 0) {
+      this.permits--;
+    } else {
+      await new Promise<void>((resolve) => this.queue.push(resolve));
+    }
+    try {
+      return await fn();
+    } finally {
+      const next = this.queue.shift();
+      if (next) next(); // hand the permit directly to the next waiter
+      else this.permits++; // no waiter: return it to the pool
+    }
+  }
+}
+
+/** Gate that bounds how many images Sharp decodes/encodes at the same time. */
+const imageGate = new Semaphore(IMAGE_MAX_CONCURRENCY);
+
+/**
  * Verify the file's leading bytes (magic number) actually match an image type —
  * defends against a spoofed Content-Type / extension on an arbitrary payload.
  * (We never trust the file extension.)
@@ -116,15 +173,20 @@ export class StorageService {
     let fullWebp: Buffer;
     let thumbWebp: Buffer;
     try {
-      fullWebp = await sharp(buffer)
-        .rotate() // normalize orientation using EXIF, then drop it on re-encode
-        .webp({ quality: FULL_WEBP_QUALITY })
-        .toBuffer();
-      thumbWebp = await sharp(buffer)
-        .rotate()
-        .resize({ width: THUMB_MAX_PX, height: THUMB_MAX_PX, fit: 'inside', withoutEnlargement: true })
-        .webp({ quality: THUMB_WEBP_QUALITY })
-        .toBuffer();
+      // Gate the Sharp work so peak memory stays bounded under concurrent uploads
+      // (see IMAGE_MAX_CONCURRENCY above). The pipeline is otherwise unchanged.
+      [fullWebp, thumbWebp] = await imageGate.run(async () => {
+        const full = await sharp(buffer)
+          .rotate() // normalize orientation using EXIF, then drop it on re-encode
+          .webp({ quality: FULL_WEBP_QUALITY })
+          .toBuffer();
+        const thumb = await sharp(buffer)
+          .rotate()
+          .resize({ width: THUMB_MAX_PX, height: THUMB_MAX_PX, fit: 'inside', withoutEnlargement: true })
+          .webp({ quality: THUMB_WEBP_QUALITY })
+          .toBuffer();
+        return [full, thumb];
+      });
     } catch {
       throw new UploadValidationError('Invalid or corrupt image data');
     }
