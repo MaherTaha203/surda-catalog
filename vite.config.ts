@@ -2,15 +2,9 @@ import { defineConfig } from 'vite';
 import { tanstackStart } from '@tanstack/react-start/plugin/vite';
 import viteReact from '@vitejs/plugin-react';
 import path from 'path';
-// Blink Visual Editor: stamps data-blnk-id on JSX + injects iframe-side picker
-// runtime. Self-contained (no external deps) so this template stays portable.
-import { blinkTaggerPlugin } from './blink-tagger.plugin.mjs';
 
 export default defineConfig({
   plugins: [
-    // Build-time tagger OFF by default — its transform can stamp data-blnk-id into
-    // HTML inside string literals. Enable with BLINK_BUILD_TIME_TAGGER=on.
-    ...(process.env.BLINK_BUILD_TIME_TAGGER === 'on' ? [blinkTaggerPlugin()] : []),
     // TanStack Start — SSR + static prerendering so search engines AND AI crawlers
     // (GPTBot/ClaudeBot/PerplexityBot, which do NOT execute JS) get fully-rendered
     // HTML on the first request. `prerender` emits crawlable static HTML at build time.
