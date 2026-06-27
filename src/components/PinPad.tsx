@@ -99,6 +99,7 @@ export function PinPad({ title, subtitle, correctPin, onSuccess, onBack }: PinPa
                   type="button"
                   onClick={handleClear}
                   disabled={pin.length === 0}
+                  aria-label="مسح"
                   className="flex items-center justify-center h-14 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30"
                 >
                   <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">

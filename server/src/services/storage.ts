@@ -32,6 +32,26 @@ const MIME_TO_EXT: Record<string, string> = {
 /** Allowed source-file extensions (validated against the original filename). */
 const ALLOWED_EXTS = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif']);
 
+/**
+ * Verify the file's leading bytes (magic number) actually match an image type —
+ * defends against a spoofed Content-Type / extension on an arbitrary payload.
+ */
+function sniffImageType(buf: Buffer): 'jpg' | 'png' | 'webp' | 'gif' | null {
+  if (buf.length < 12) return null;
+  // JPEG: FF D8 FF
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpg';
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (
+    buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47 &&
+    buf[4] === 0x0d && buf[5] === 0x0a && buf[6] === 0x1a && buf[7] === 0x0a
+  ) return 'png';
+  // GIF: "GIF87a" / "GIF89a"
+  if (buf.toString('ascii', 0, 6).match(/^GIF8[79]a$/)) return 'gif';
+  // WEBP: "RIFF"...."WEBP"
+  if (buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return 'webp';
+  return null;
+}
+
 /** Thrown for invalid uploads so routes can answer 400 (vs 500). */
 export class UploadValidationError extends Error {}
 
@@ -75,6 +95,13 @@ export class StorageService {
       throw new UploadValidationError(
         `File too large (${buffer.length} bytes, max ${MAX_BYTES}).`,
       );
+    }
+
+    // Content sniffing: the bytes must actually be an image (not just a spoofed
+    // Content-Type / extension on an arbitrary payload).
+    const sniffed = sniffImageType(buffer);
+    if (!sniffed) {
+      throw new UploadValidationError('File content is not a recognized image');
     }
 
     const name = `${randomUUID()}.${ext}`;
