@@ -33,6 +33,21 @@ curl http://localhost:4000/health
 # {"status":"ok"}
 ```
 
+## API endpoints
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/health` | `{ "status": "ok" }` |
+| `GET` | `/products` | All products, `sortOrder` asc (incl. hidden). |
+| `GET` | `/products/:id` | One product, or 404. |
+| `POST` | `/products` | Create (server generates id/timestamps) → 201. |
+| `PUT` | `/products/:id` | Update fields → 200 / 404. |
+| `DELETE` | `/products/:id` | Delete → 204 / 404. |
+| `PATCH` | `/products/:id/visibility` | Body `{ isHidden }` or `{ hidden }` → 200 / 404. |
+| `PATCH` | `/products/:id/order` | Body `{ sortOrder }` → 200 / 404. |
+
+All routes go through `ProductsService` — no SQL lives in route handlers.
+
 ## Automatic database initialization
 On boot, `src/plugins/database.ts` calls `initDatabase()` which:
 1. Creates **`catalog.db`** in the server's working directory if it does not exist.
