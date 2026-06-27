@@ -33,19 +33,22 @@ The database and `products` table auto-create on first boot. Run behind a proces
 ## 2. Frontend (static PWA)
 
 ```bash
-# from the repo root
-VITE_API_URL="https://api.example.com" npm install
-VITE_API_URL="https://api.example.com" npm run build
-# → produces dist/ (prerendered HTML + assets)
+# from the repo root — same-origin (recommended): leave VITE_API_URL unset
+npm install
+npm run build              # → dist/ (relative API paths)
+#   split-origin:  VITE_API_URL="https://api.example.com" npm run build
 ```
 
 Host `dist/` on any static host/CDN with an **SPA fallback** (`/* → /index.html`, 200) so
 client-rendered routes like `/product/:id` resolve. `public/_redirects` already encodes this
 for Netlify-style hosts.
 
-- **Same-origin (recommended):** serve `dist/` and the API under one origin (e.g. the reverse
-  proxy routes `/products`, `/upload`, `/uploads`, `/health` to Fastify and everything else to
-  the static files). Then build with `VITE_API_URL=""` so image/API URLs stay relative.
+By default the frontend uses **same-origin relative** API paths — no host is baked into the
+build. Choose one topology:
+
+- **Same-origin (recommended):** serve `dist/` and the API under one origin (the reverse proxy
+  routes `/products`, `/upload`, `/uploads`, `/health` to Fastify and everything else to the
+  static files). Build with `VITE_API_URL` **unset** so API/image URLs stay relative.
 - **Split-origin:** set `VITE_API_URL` to the API origin and `CORS_ORIGIN` to the frontend
   origin. `@fastify/helmet` is configured with `Cross-Origin-Resource-Policy: cross-origin`
   so images load across origins.
