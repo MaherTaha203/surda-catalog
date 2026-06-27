@@ -3,8 +3,13 @@ import { createFileRoute, useNavigate, Link } from '@tanstack/react-router';
 import { AnimatePresence } from 'framer-motion';
 import { ArrowRight, Plus, Package } from 'lucide-react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { blink } from '@/blink/client';
 import { toast } from '@blinkdotnew/ui';
+import {
+  listProducts,
+  deleteProduct,
+  setProductVisibility,
+  reorderProducts,
+} from '@/api/products';
 import { isAdminUnlocked, isPinUnlocked } from '@/lib/storage';
 import { useIsClient } from '@/hooks/useIsClient';
 import type { Product } from '@/types/product';
@@ -13,8 +18,7 @@ import { AdminProductForm } from '@/components/AdminProductForm';
 import { AdminProductRow } from '@/components/AdminProductRow';
 
 async function fetchAllProducts(): Promise<Product[]> {
-  const items = await blink.db.table<Product>('products').list({ orderBy: { sortOrder: 'asc' } });
-  return items || [];
+  return listProducts();
 }
 
 export const Route = createFileRoute('/admin')({
@@ -29,8 +33,11 @@ function AdminPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
-  const unlocked = isPinUnlocked() && isAdminUnlocked();
   const isClient = useIsClient();
+  // Gate on isClient so SSR and the client's first render both produce the same
+  // output (null) before mount — avoids a hydration mismatch from reading
+  // sessionStorage (unavailable on the server).
+  const unlocked = isClient && isPinUnlocked() && isAdminUnlocked();
 
   useEffect(() => { if (isClient && !unlocked) navigate({ to: '/' }); }, [unlocked, navigate, isClient]);
 
@@ -41,7 +48,7 @@ function AdminPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => { await blink.db.table<Product>('products').delete(id); },
+    mutationFn: async (id: string) => { await deleteProduct(id); },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
       refresh();
@@ -52,7 +59,7 @@ function AdminPage() {
 
   const toggleMutation = useMutation({
     mutationFn: async ({ id, isHidden }: { id: string; isHidden: number }) => {
-      await blink.db.table<Product>('products').update(id, { isHidden });
+      await setProductVisibility(id, isHidden);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
@@ -61,8 +68,8 @@ function AdminPage() {
   });
 
   const reorderMutation = useMutation({
-    mutationFn: async ({ id, sortOrder }: { id: string; sortOrder: number }) => {
-      await blink.db.table<Product>('products').update(id, { sortOrder });
+    mutationFn: async (items: { id: string; sortOrder: number }[]) => {
+      await reorderProducts(items);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
@@ -130,14 +137,18 @@ function AdminPage() {
                 onToggleHide={(id, cur) => toggleMutation.mutate({ id, isHidden: cur ? 0 : 1 })}
                 onMoveUp={() => {
                   if (i > 0) {
-                    reorderMutation.mutate({ id: product.id, sortOrder: i - 1 });
-                    reorderMutation.mutate({ id: products[i - 1].id, sortOrder: i });
+                    reorderMutation.mutate([
+                      { id: product.id, sortOrder: i - 1 },
+                      { id: products[i - 1].id, sortOrder: i },
+                    ]);
                   }
                 }}
                 onMoveDown={() => {
                   if (i < products.length - 1) {
-                    reorderMutation.mutate({ id: product.id, sortOrder: i + 1 });
-                    reorderMutation.mutate({ id: products[i + 1].id, sortOrder: i });
+                    reorderMutation.mutate([
+                      { id: product.id, sortOrder: i + 1 },
+                      { id: products[i + 1].id, sortOrder: i },
+                    ]);
                   }
                 }}
               />

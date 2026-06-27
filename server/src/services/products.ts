@@ -6,7 +6,7 @@
  * It mirrors the operations Blink provides today (PROJECT_AUDIT.md §5) so that a
  * later phase can back the Fastify `/products` endpoints with it unchanged.
  */
-import type { DatabaseSync } from 'node:sqlite';
+import type { DatabaseSync, StatementSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 
 /** Row shape == the `Product` contract in ../../../src/types/product.ts. */
@@ -44,26 +44,47 @@ export type ProductUpdate = Partial<Omit<ProductRow, 'id' | 'createdAt' | 'updat
 export class ProductsService {
   constructor(private readonly db: DatabaseSync) {}
 
+  // Prepared-statement cache — the service instance is reused across requests,
+  // so compile each SQL string once instead of on every call.
+  private readonly stmtCache = new Map<string, StatementSync>();
+  private prep(sql: string): StatementSync {
+    let stmt = this.stmtCache.get(sql);
+    if (!stmt) {
+      stmt = this.db.prepare(sql);
+      this.stmtCache.set(sql, stmt);
+    }
+    return stmt;
+  }
+
+  /** Run `fn` inside a single transaction; rolls back if it throws. */
+  private transaction<T>(fn: () => T): T {
+    this.db.exec('BEGIN');
+    try {
+      const result = fn();
+      this.db.exec('COMMIT');
+      return result;
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    }
+  }
+
   /** All products, ordered by sortOrder asc (matches every Blink list call). */
   list(): ProductRow[] {
-    return this.db
-      .prepare('SELECT * FROM products ORDER BY sortOrder ASC')
+    return this.prep('SELECT * FROM products ORDER BY sortOrder ASC')
       .all() as unknown as ProductRow[];
   }
 
   /** One product by id, or null if not found. */
   get(id: string): ProductRow | null {
-    const row = this.db
-      .prepare('SELECT * FROM products WHERE id = ?')
+    const row = this.prep('SELECT * FROM products WHERE id = ?')
       .get(id) as unknown as ProductRow | undefined;
     return row ?? null;
   }
 
   /** Number of products currently stored. */
   count(): number {
-    const row = this.db
-      .prepare('SELECT COUNT(*) AS n FROM products')
-      .get() as { n: number };
+    const row = this.prep('SELECT COUNT(*) AS n FROM products').get() as { n: number };
     return row.n;
   }
 
@@ -73,8 +94,7 @@ export class ProductsService {
    * Preserves the `id` and writes every field exactly as provided.
    */
   upsert(p: ProductRow): void {
-    this.db
-      .prepare(
+    this.prep(
         `INSERT INTO products
            (id, name, description, size, cartonQuantity, cartonPrice, imageUrl,
             category, isHidden, sortOrder, createdAt, updatedAt)
@@ -154,7 +174,7 @@ export class ProductsService {
 
   /** Delete a product by id. Returns true when a row was removed. */
   delete(id: string): boolean {
-    const res = this.db.prepare('DELETE FROM products WHERE id = ?').run(id);
+    const res = this.prep('DELETE FROM products WHERE id = ?').run(id);
     return Number(res.changes) > 0;
   }
 
@@ -166,5 +186,23 @@ export class ProductsService {
   /** Set a product's manual sort order. */
   setOrder(id: string, sortOrder: number): ProductRow | null {
     return this.update(id, { sortOrder });
+  }
+
+  /**
+   * Apply multiple sortOrder changes atomically (all-or-nothing). Used by the
+   * admin reorder so a swap can't leave the list half-updated. Unknown ids are
+   * ignored. Returns the full list in its new order.
+   */
+  reorder(items: { id: string; sortOrder: number }[]): ProductRow[] {
+    const now = new Date().toISOString();
+    const stmt = this.prep(
+      'UPDATE products SET sortOrder = ?, updatedAt = ? WHERE id = ?',
+    );
+    this.transaction(() => {
+      for (const { id, sortOrder } of items) {
+        stmt.run(Math.trunc(sortOrder), now, id);
+      }
+    });
+    return this.list();
   }
 }

@@ -24,6 +24,7 @@ import {
   type NewProduct,
   type ProductUpdate,
 } from '../services/products.ts';
+import { StorageService } from '../services/storage.ts';
 
 interface ProductIdParams {
   id: string;
@@ -58,6 +59,7 @@ function buildPatch(body: Record<string, unknown>): ProductUpdate {
 const productsRoutes: FastifyPluginAsync = async (fastify) => {
   // `fastify.db` is decorated by the database plugin, registered before this one.
   const products = new ProductsService(fastify.db);
+  const storage = new StorageService();
 
   // ── GET /products ──────────────────────────────────────────────────────────
   fastify.get('/products', async (_request, reply) => {
@@ -152,10 +154,13 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.delete<{ Params: ProductIdParams }>('/products/:id', async (request, reply) => {
     const { id } = request.params;
     try {
+      const existing = products.get(id);
       const removed = products.delete(id);
       if (!removed) {
         return reply.code(404).send({ error: 'Not Found', message: `Product '${id}' not found` });
       }
+      // Remove the product's local image file, if any.
+      await storage.deleteByUrl(existing?.imageUrl);
       return reply.code(204).send();
     } catch (err) {
       fastify.log.error(err, `failed to delete product '${id}'`);
@@ -193,6 +198,31 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
         return reply
           .code(500)
           .send({ error: 'Internal Server Error', message: 'Failed to update visibility' });
+      }
+    },
+  );
+
+  // ── PATCH /products/reorder ────────────────────────────────────────────────
+  // Atomic multi-item reorder (all-or-nothing). Body: { items: [{ id, sortOrder }] }.
+  fastify.patch<{ Body: { items?: { id: string; sortOrder: number }[] } }>(
+    '/products/reorder',
+    async (request, reply) => {
+      const items = request.body?.items;
+      if (!Array.isArray(items) || items.length === 0) {
+        return reply
+          .code(400)
+          .send({ error: 'Bad Request', message: 'items: [{ id, sortOrder }] is required' });
+      }
+      const clean = items
+        .filter((it) => it && typeof it.id === 'string')
+        .map((it) => ({ id: it.id, sortOrder: toInt(it.sortOrder) }));
+      try {
+        return products.reorder(clean);
+      } catch (err) {
+        fastify.log.error(err, 'failed to reorder products');
+        return reply
+          .code(500)
+          .send({ error: 'Internal Server Error', message: 'Failed to reorder products' });
       }
     },
   );
