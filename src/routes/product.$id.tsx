@@ -3,16 +3,20 @@ import { createFileRoute, useParams, useNavigate } from '@tanstack/react-router'
 import { motion } from 'framer-motion';
 import { ArrowRight, Package, Box } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { blink } from '@/blink/client';
+import { getProduct } from '@/api/products';
+import { getCachedProducts } from '@/lib/offline-db';
 import { ImageViewer } from '@/components/ImageViewer';
 import type { Product } from '@/types/product';
 
 async function fetchProduct(id: string): Promise<Product | null> {
   try {
-    const result = await blink.db.table<Product>('products').get(id);
-    return result || null;
+    // Loads from the Fastify API (getProduct returns null on a 404).
+    return await getProduct(id);
   } catch {
-    return null;
+    // API unavailable → fall back to the offline cache (populated by the
+    // catalog). Cached products already carry display-ready image URLs.
+    const cached = await getCachedProducts();
+    return cached.find((p) => p.id === id) ?? null;
   }
 }
 
