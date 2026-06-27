@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@blinkdotnew/sdk": "^2.6.2",
+    "@fastify/cors": "^10.0.2",
     "fastify": "^5.2.1",
     "fastify-plugin": "^5.0.1"
   },
