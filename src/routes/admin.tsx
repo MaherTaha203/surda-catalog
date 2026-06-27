@@ -33,8 +33,11 @@ function AdminPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
-  const unlocked = isPinUnlocked() && isAdminUnlocked();
   const isClient = useIsClient();
+  // Gate on isClient so SSR and the client's first render both produce the same
+  // output (null) before mount — avoids a hydration mismatch from reading
+  // sessionStorage (unavailable on the server).
+  const unlocked = isClient && isPinUnlocked() && isAdminUnlocked();
 
   useEffect(() => { if (isClient && !unlocked) navigate({ to: '/' }); }, [unlocked, navigate, isClient]);
 

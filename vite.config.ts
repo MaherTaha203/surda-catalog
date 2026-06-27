@@ -49,5 +49,9 @@ export default defineConfig({
     // pre-injects a read-only _redirects the sandbox user can't unlink.
     outDir: '.vite-out',
     emptyOutDir: true,
+    // This small offline-first PWA ships as a single bundle (~231 kB gzip) on
+    // purpose — fewer requests suit the two-tablet, often-offline deployment.
+    // Raise the advisory limit to match that deliberate choice.
+    chunkSizeWarningLimit: 1000,
   },
 });
