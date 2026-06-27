@@ -56,6 +56,19 @@ export class ProductsService {
     return stmt;
   }
 
+  /** Run `fn` inside a single transaction; rolls back if it throws. */
+  private transaction<T>(fn: () => T): T {
+    this.db.exec('BEGIN');
+    try {
+      const result = fn();
+      this.db.exec('COMMIT');
+      return result;
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    }
+  }
+
   /** All products, ordered by sortOrder asc (matches every Blink list call). */
   list(): ProductRow[] {
     return this.prep('SELECT * FROM products ORDER BY sortOrder ASC')
@@ -173,5 +186,23 @@ export class ProductsService {
   /** Set a product's manual sort order. */
   setOrder(id: string, sortOrder: number): ProductRow | null {
     return this.update(id, { sortOrder });
+  }
+
+  /**
+   * Apply multiple sortOrder changes atomically (all-or-nothing). Used by the
+   * admin reorder so a swap can't leave the list half-updated. Unknown ids are
+   * ignored. Returns the full list in its new order.
+   */
+  reorder(items: { id: string; sortOrder: number }[]): ProductRow[] {
+    const now = new Date().toISOString();
+    const stmt = this.prep(
+      'UPDATE products SET sortOrder = ?, updatedAt = ? WHERE id = ?',
+    );
+    this.transaction(() => {
+      for (const { id, sortOrder } of items) {
+        stmt.run(Math.trunc(sortOrder), now, id);
+      }
+    });
+    return this.list();
   }
 }

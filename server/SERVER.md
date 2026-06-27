@@ -45,6 +45,7 @@ curl http://localhost:4000/health
 | `DELETE` | `/products/:id` | Delete → 204 / 404. |
 | `PATCH` | `/products/:id/visibility` | Body `{ isHidden }` or `{ hidden }` → 200 / 404. |
 | `PATCH` | `/products/:id/order` | Body `{ sortOrder }` → 200 / 404. |
+| `PATCH` | `/products/reorder` | Body `{ items: [{ id, sortOrder }] }` → 200, atomic. |
 | `POST` | `/upload` | multipart `file` → 201 `{ url, filename, bytes }`. `?oldImageUrl=` deletes the replaced image. |
 | `GET` | `/uploads/products/:file` | Static image serving. |
 

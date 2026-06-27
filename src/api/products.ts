@@ -82,6 +82,18 @@ export async function setProductOrder(id: string, sortOrder: number): Promise<Pr
   return forDisplay(updated);
 }
 
+/** Apply several sortOrder changes atomically (single transaction). */
+export async function reorderProducts(
+  items: { id: string; sortOrder: number }[],
+): Promise<Product[]> {
+  const updated = await apiRequest<Product[]>('/products/reorder', {
+    method: 'PATCH',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ items }),
+  });
+  return (updated ?? []).map(forDisplay);
+}
+
 /**
  * Upload a product image. Returns the stored (relative) URL. Pass the current
  * image URL as `oldImageUrl` to delete it server-side when replacing.

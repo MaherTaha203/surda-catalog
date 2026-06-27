@@ -8,6 +8,7 @@
 import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
+import helmet from '@fastify/helmet';
 import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import { mkdirSync } from 'node:fs';
@@ -22,6 +23,15 @@ export function buildApp(): FastifyInstance {
     logger: {
       level: process.env.LOG_LEVEL || 'info',
     },
+  });
+
+  // Security headers. CSP is disabled (this is a JSON/image API, not an HTML app)
+  // and Cross-Origin-Resource-Policy is set to cross-origin so the frontend (a
+  // different origin) can load product images served from /uploads.
+  app.register(helmet, {
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    crossOriginEmbedderPolicy: false,
   });
 
   // CORS — lets the browser frontend (a different origin in dev / on the tablets)

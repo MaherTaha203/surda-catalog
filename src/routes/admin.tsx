@@ -8,7 +8,7 @@ import {
   listProducts,
   deleteProduct,
   setProductVisibility,
-  setProductOrder,
+  reorderProducts,
 } from '@/api/products';
 import { isAdminUnlocked, isPinUnlocked } from '@/lib/storage';
 import { useIsClient } from '@/hooks/useIsClient';
@@ -68,8 +68,8 @@ function AdminPage() {
   });
 
   const reorderMutation = useMutation({
-    mutationFn: async ({ id, sortOrder }: { id: string; sortOrder: number }) => {
-      await setProductOrder(id, sortOrder);
+    mutationFn: async (items: { id: string; sortOrder: number }[]) => {
+      await reorderProducts(items);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
@@ -137,14 +137,18 @@ function AdminPage() {
                 onToggleHide={(id, cur) => toggleMutation.mutate({ id, isHidden: cur ? 0 : 1 })}
                 onMoveUp={() => {
                   if (i > 0) {
-                    reorderMutation.mutate({ id: product.id, sortOrder: i - 1 });
-                    reorderMutation.mutate({ id: products[i - 1].id, sortOrder: i });
+                    reorderMutation.mutate([
+                      { id: product.id, sortOrder: i - 1 },
+                      { id: products[i - 1].id, sortOrder: i },
+                    ]);
                   }
                 }}
                 onMoveDown={() => {
                   if (i < products.length - 1) {
-                    reorderMutation.mutate({ id: product.id, sortOrder: i + 1 });
-                    reorderMutation.mutate({ id: products[i + 1].id, sortOrder: i });
+                    reorderMutation.mutate([
+                      { id: product.id, sortOrder: i + 1 },
+                      { id: products[i + 1].id, sortOrder: i },
+                    ]);
                   }
                 }}
               />

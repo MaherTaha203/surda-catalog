@@ -202,6 +202,31 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
+  // ── PATCH /products/reorder ────────────────────────────────────────────────
+  // Atomic multi-item reorder (all-or-nothing). Body: { items: [{ id, sortOrder }] }.
+  fastify.patch<{ Body: { items?: { id: string; sortOrder: number }[] } }>(
+    '/products/reorder',
+    async (request, reply) => {
+      const items = request.body?.items;
+      if (!Array.isArray(items) || items.length === 0) {
+        return reply
+          .code(400)
+          .send({ error: 'Bad Request', message: 'items: [{ id, sortOrder }] is required' });
+      }
+      const clean = items
+        .filter((it) => it && typeof it.id === 'string')
+        .map((it) => ({ id: it.id, sortOrder: toInt(it.sortOrder) }));
+      try {
+        return products.reorder(clean);
+      } catch (err) {
+        fastify.log.error(err, 'failed to reorder products');
+        return reply
+          .code(500)
+          .send({ error: 'Internal Server Error', message: 'Failed to reorder products' });
+      }
+    },
+  );
+
   // ── PATCH /products/:id/order ──────────────────────────────────────────────
   fastify.patch<{ Params: ProductIdParams; Body: Record<string, unknown> }>(
     '/products/:id/order',
