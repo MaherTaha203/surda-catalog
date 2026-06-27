@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sarda-catalog-v1';
+const CACHE_NAME = 'sarda-catalog-v2';
 const PRECACHE_URLS = [
   '/',
   '/catalog',
@@ -25,6 +25,14 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+// Is this a request to the data API (different origin, or a known API path)?
+// API responses are dynamic — they must be network-first so a mutation is
+// reflected immediately, never served stale from the cache.
+function isApiRequest(url) {
+  if (url.origin !== self.location.origin) return true; // cross-origin API host
+  return /^\/(products|upload|uploads|health|api)(\/|$)/.test(url.pathname);
+}
+
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
@@ -38,24 +46,35 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Cache-first for assets, network-first for API
   const url = new URL(event.request.url);
-  if (url.pathname.startsWith('/api/')) {
+
+  // API (dynamic): network-first, fall back to cache only when offline.
+  if (isApiRequest(url)) {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request))
-    );
-  } else {
-    event.respondWith(
-      caches.match(event.request).then((cached) => {
-        const fetched = fetch(event.request).then((response) => {
+      fetch(event.request)
+        .then((response) => {
           if (response.ok) {
             const clone = response.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
           }
           return response;
-        });
-        return cached || fetched;
-      })
+        })
+        .catch(() => caches.match(event.request))
     );
+    return;
   }
+
+  // Static assets (same-origin): cache-first, revalidate in background.
+  event.respondWith(
+    caches.match(event.request).then((cached) => {
+      const fetched = fetch(event.request).then((response) => {
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        }
+        return response;
+      });
+      return cached || fetched;
+    })
+  );
 });
