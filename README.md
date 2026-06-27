@@ -1,59 +1,51 @@
-# Enhanced Vite React TypeScript Template
+# سردا — كتالوج المنتجات · Sarda Product Catalog
 
-This template includes built-in detection for missing CSS variables between your Tailwind config and CSS files.
+An offline-first, RTL Arabic **product catalog PWA** for Sarda (شركة سردا للتجارة والصناعة),
+backed by a self-hosted **Fastify + SQLite** API with local image storage. No operational
+dependency on Blink.
 
-## Features
+## Stack
+- **Frontend:** React 19 · TanStack Start (SSR + static prerender) · TanStack Router ·
+  React Query · Tailwind · PWA (manifest + service worker) · IndexedDB offline cache.
+- **Backend:** Fastify 5 · Node 22 `node:sqlite` (no native build) · `@fastify/{cors,helmet,
+  multipart,static}` · TypeScript via `tsx`.
 
-- **CSS Variable Detection**: Automatically detects if CSS variables referenced in `tailwind.config.cjs` are defined in `src/index.css`
-- **Enhanced Linting**: Includes ESLint, Stylelint, and custom CSS variable validation
-- **Shadcn/ui**: Pre-configured with all Shadcn components
-- **Modern Stack**: Vite + React + TypeScript + Tailwind CSS
-
-## Available Scripts
+## Quick start
 
 ```bash
-# Run all linting (includes CSS variable check)
-npm run lint
+# 1) API (auto-creates catalog.db on first boot)
+npm run server                 # installs server deps, then starts on :4000
+#   or:  cd server && npm install && npm run dev
 
-# Check only CSS variables
-npm run check:css-vars
-
-# Individual linting
-npm run lint:js    # ESLint
-npm run lint:css   # Stylelint
+# 2) Frontend (point it at the API)
+VITE_API_URL=http://localhost:4000 npm install
+VITE_API_URL=http://localhost:4000 npm run dev      # Vite on :3000
 ```
 
-## CSS Variable Detection
+Open http://localhost:3000 — default PINs: **`1234`** (display) / **`4321`** (admin).
 
-The template includes a custom script that:
+## Build (production)
 
-1. **Parses `tailwind.config.cjs`** to find all `var(--variable)` references
-2. **Parses `src/index.css`** to find all defined CSS variables (`--variable:`)
-3. **Cross-references** them to find missing definitions
-4. **Reports undefined variables** with clear error messages
-
-### Example Output
-
-When CSS variables are missing:
-```
-❌ Undefined CSS variables found in tailwind.config.cjs:
-   --sidebar-background
-   --sidebar-foreground
-   --sidebar-primary
-
-Add these variables to src/index.css
+```bash
+VITE_API_URL="<api-origin>" npm run build           # → dist/ (static)
 ```
 
-When all variables are defined:
+Host `dist/` with an SPA fallback (`/* → index.html`). See `docs/DEPLOYMENT.md`.
+
+## Project layout
 ```
-✅ All CSS variables in tailwind.config.cjs are defined
+src/            React app (routes, components, hooks, api client, lib)
+server/         Fastify + SQLite API (routes, services, database, plugins)
+public/         PWA assets (manifest.json, sw.js, icons)
+docs/           Architecture, API, database, deployment, guides, etc.
 ```
 
-## How It Works
+## Documentation
+Start at **[docs/README.md](./docs/README.md)**. Backend details in `server/SERVER.md`;
+final audit in `FINAL_AUDIT.md`.
 
-The detection happens during the `npm run lint` command, which will:
-- Exit with error code 1 if undefined variables are found
-- Show exactly which variables need to be added to your CSS file
-- Integrate seamlessly with your development workflow
-
-This prevents runtime CSS issues where Tailwind classes reference undefined CSS variables.
+## Scripts
+- `npm run server` — install + start the API
+- `npm run dev` — frontend dev server (set `VITE_API_URL`)
+- `npm run build` — static production build into `dist/`
+- `npm --prefix server run typecheck` · `npx tsc --noEmit` — type checks
