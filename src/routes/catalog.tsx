@@ -89,6 +89,7 @@ function CatalogPage() {
               )}
               <Link
                 to="/settings"
+                aria-label="الإعدادات"
                 className="p-2 rounded-lg text-muted-foreground hover:bg-muted transition-colors"
               >
                 <Settings size={18} />
@@ -96,6 +97,7 @@ function CatalogPage() {
               <button
                 type="button"
                 onClick={handleLogout}
+                aria-label="تسجيل الخروج"
                 className="p-2 rounded-lg text-muted-foreground hover:bg-muted transition-colors"
               >
                 <LogOut size={18} />
@@ -114,6 +116,7 @@ function CatalogPage() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="ابحث عن منتج..."
+            aria-label="ابحث عن منتج"
             className="w-full h-12 pr-11 pl-4 rounded-xl bg-card border border-border text-base text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"
             dir="rtl"
           />

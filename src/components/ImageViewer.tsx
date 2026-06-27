@@ -85,6 +85,7 @@ export function ImageViewer({ src, alt, open, onClose }: ImageViewerProps) {
           <button
             type="button"
             onClick={onClose}
+            aria-label="إغلاق"
             className="absolute top-4 left-4 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-background/10 text-background hover:bg-background/20 transition-colors"
           >
             <X size={22} />
@@ -99,6 +100,7 @@ export function ImageViewer({ src, alt, open, onClose }: ImageViewerProps) {
                 setScale((s) => Math.max(0.5, s - 0.5));
               }}
               disabled={scale <= 0.5}
+              aria-label="تصغير"
               className="w-10 h-10 flex items-center justify-center rounded-full bg-background/10 text-background hover:bg-background/20 transition-colors disabled:opacity-30"
             >
               <ZoomOut size={18} />
@@ -109,6 +111,7 @@ export function ImageViewer({ src, alt, open, onClose }: ImageViewerProps) {
                 e.stopPropagation();
                 resetZoom();
               }}
+              aria-label="إعادة الضبط"
               className="w-10 h-10 flex items-center justify-center rounded-full bg-background/10 text-background hover:bg-background/20 transition-colors"
             >
               <RotateCcw size={16} />
@@ -120,6 +123,7 @@ export function ImageViewer({ src, alt, open, onClose }: ImageViewerProps) {
                 setScale((s) => Math.min(5, s + 0.5));
               }}
               disabled={scale >= 5}
+              aria-label="تكبير"
               className="w-10 h-10 flex items-center justify-center rounded-full bg-background/10 text-background hover:bg-background/20 transition-colors disabled:opacity-30"
             >
               <ZoomIn size={18} />
