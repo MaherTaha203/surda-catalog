@@ -15,7 +15,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync } from 'node:fs';
-import { unlink, writeFile } from 'node:fs/promises';
+import { readFile, unlink, writeFile } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import sharp from 'sharp';
 
@@ -29,10 +29,14 @@ export const THUMBS_PREFIX = process.env.UPLOADS_THUMBS_PREFIX || '/uploads/thum
 /** Max upload size in bytes (default 50 MB — client compresses before sending). */
 export const MAX_BYTES = Number(process.env.UPLOAD_MAX_BYTES) || 50 * 1024 * 1024;
 
-/** Image processing parameters. */
-const FULL_WEBP_QUALITY = 82;
-const THUMB_MAX_PX = 400;
-const THUMB_WEBP_QUALITY = 80;
+/**
+ * Image processing parameters. Exported so the media-management layer
+ * (thumbnail regeneration, integrity checks) reproduces the EXACT same pipeline
+ * — one source of truth, no drift between upload-time and repair-time output.
+ */
+export const FULL_WEBP_QUALITY = 82;
+export const THUMB_MAX_PX = 400;
+export const THUMB_WEBP_QUALITY = 80;
 
 const isDev = process.env.NODE_ENV !== 'production';
 
@@ -94,11 +98,58 @@ class Semaphore {
 const imageGate = new Semaphore(IMAGE_MAX_CONCURRENCY);
 
 /**
+ * The two image pipelines, as single-source-of-truth functions. `saveImage`
+ * (upload) and `regenerateThumbnail` (media repair) both call these, so a
+ * regenerated thumbnail is byte-for-byte what the original upload produced.
+ */
+function fullPipeline(buffer: Buffer): Promise<Buffer> {
+  return sharp(buffer)
+    .rotate() // normalize orientation using EXIF, then drop it on re-encode
+    .webp({ quality: FULL_WEBP_QUALITY })
+    .toBuffer();
+}
+function thumbnailPipeline(buffer: Buffer): Promise<Buffer> {
+  return sharp(buffer)
+    .rotate()
+    .resize({ width: THUMB_MAX_PX, height: THUMB_MAX_PX, fit: 'inside', withoutEnlargement: true })
+    .webp({ quality: THUMB_WEBP_QUALITY })
+    .toBuffer();
+}
+
+/**
+ * Process-wide image metrics (Observability). In-memory, reset on restart —
+ * a lightweight operational counter, not a persisted store. `rejected` counts
+ * bad input refused by validation; `failed` counts images that passed validation
+ * but threw during Sharp decode/encode (corrupt pixels).
+ */
+export interface ImageMetrics {
+  processed: number;
+  rejected: number;
+  failed: number;
+  totalProcessingMs: number;
+  avgProcessingMs: number;
+  lastProcessedAt: string | null;
+}
+const metrics = { processed: 0, rejected: 0, failed: 0, totalProcessingMs: 0, lastProcessedAt: null as string | null };
+
+/** Snapshot of the in-memory image processing metrics since server start. */
+export function getImageMetrics(): ImageMetrics {
+  return {
+    processed: metrics.processed,
+    rejected: metrics.rejected,
+    failed: metrics.failed,
+    totalProcessingMs: Math.round(metrics.totalProcessingMs),
+    avgProcessingMs: metrics.processed > 0 ? Math.round(metrics.totalProcessingMs / metrics.processed) : 0,
+    lastProcessedAt: metrics.lastProcessedAt,
+  };
+}
+
+/**
  * Verify the file's leading bytes (magic number) actually match an image type —
  * defends against a spoofed Content-Type / extension on an arbitrary payload.
  * (We never trust the file extension.)
  */
-function sniffImageType(buf: Buffer): 'jpg' | 'png' | 'webp' | 'gif' | null {
+export function sniffImageType(buf: Buffer): 'jpg' | 'png' | 'webp' | 'gif' | null {
   if (buf.length < 12) return null;
   // JPEG: FF D8 FF
   if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpg';
@@ -150,9 +201,11 @@ export class StorageService {
   async saveImage({ buffer, mimetype, filename }: SaveImageInput): Promise<SavedImage> {
     // 1) Cheap guards first.
     if (!buffer || buffer.length === 0) {
+      metrics.rejected++;
       throw new UploadValidationError('Empty file');
     }
     if (buffer.length > MAX_BYTES) {
+      metrics.rejected++;
       throw new UploadValidationError(
         `File too large (${buffer.length} bytes, max ${MAX_BYTES}).`,
       );
@@ -162,6 +215,7 @@ export class StorageService {
     //    (mimetype is informational only; the bytes are authoritative.)
     if (!sniffImageType(buffer)) {
       void mimetype; void filename;
+      metrics.rejected++;
       throw new UploadValidationError('File content is not a recognized image');
     }
 
@@ -176,18 +230,12 @@ export class StorageService {
       // Gate the Sharp work so peak memory stays bounded under concurrent uploads
       // (see IMAGE_MAX_CONCURRENCY above). The pipeline is otherwise unchanged.
       [fullWebp, thumbWebp] = await imageGate.run(async () => {
-        const full = await sharp(buffer)
-          .rotate() // normalize orientation using EXIF, then drop it on re-encode
-          .webp({ quality: FULL_WEBP_QUALITY })
-          .toBuffer();
-        const thumb = await sharp(buffer)
-          .rotate()
-          .resize({ width: THUMB_MAX_PX, height: THUMB_MAX_PX, fit: 'inside', withoutEnlargement: true })
-          .webp({ quality: THUMB_WEBP_QUALITY })
-          .toBuffer();
+        const full = await fullPipeline(buffer);
+        const thumb = await thumbnailPipeline(buffer);
         return [full, thumb];
       });
     } catch {
+      metrics.failed++;
       throw new UploadValidationError('Invalid or corrupt image data');
     }
 
@@ -195,8 +243,12 @@ export class StorageService {
     await writeFile(join(PRODUCTS_DIR, name), fullWebp);
     await writeFile(join(THUMBS_DIR, name), thumbWebp);
 
+    const ms = Date.now() - startedAt;
+    metrics.processed++;
+    metrics.totalProcessingMs += ms;
+    metrics.lastProcessedAt = new Date().toISOString();
+
     if (isDev) {
-      const ms = Date.now() - startedAt;
       const ratio = (fullWebp.length / buffer.length).toFixed(2);
       // eslint-disable-next-line no-console
       console.log(
@@ -238,5 +290,27 @@ export class StorageService {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Regenerate the thumbnail for an already-stored full image, from the full
+   * image on disk. Used by the media-management repair tooling (recover a missing
+   * or stale thumbnail). Reuses the exact upload-time thumbnail pipeline and the
+   * same concurrency gate, so output is identical and peak memory stays bounded.
+   *
+   * `filename` is the stored basename (e.g. `<uuid>.webp`); any directory part is
+   * stripped to prevent path traversal. Returns the written thumbnail size.
+   */
+  async regenerateThumbnail(filename: string): Promise<{ name: string; bytes: number }> {
+    const name = basename(filename);
+    if (!name) throw new UploadValidationError('Invalid image name');
+    const fullPath = join(PRODUCTS_DIR, name);
+    if (!existsSync(fullPath)) {
+      throw new UploadValidationError(`Source image not found: ${name}`);
+    }
+    const src = await readFile(fullPath);
+    const thumb = await imageGate.run(() => thumbnailPipeline(src));
+    await writeFile(join(THUMBS_DIR, name), thumb);
+    return { name, bytes: thumb.length };
   }
 }
