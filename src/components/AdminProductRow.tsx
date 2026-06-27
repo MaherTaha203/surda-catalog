@@ -31,9 +31,9 @@ export function AdminProductRow({
     >
       {/* Reorder buttons */}
       <div className="hidden sm:flex flex-col items-center gap-0.5 text-muted-foreground/40">
-        <button type="button" onClick={onMoveUp} disabled={isFirst}
+        <button type="button" onClick={onMoveUp} disabled={isFirst} aria-label="نقل لأعلى"
           className="hover:text-foreground transition-colors disabled:opacity-20">▲</button>
-        <button type="button" onClick={onMoveDown} disabled={isLast}
+        <button type="button" onClick={onMoveDown} disabled={isLast} aria-label="نقل لأسفل"
           className="hover:text-foreground transition-colors disabled:opacity-20">▼</button>
       </div>
       {/* Thumbnail */}
@@ -56,14 +56,16 @@ export function AdminProductRow({
       {/* Actions */}
       <div className="flex items-center gap-1 shrink-0">
         <button type="button" onClick={() => onToggleHide(product.id, Number(product.isHidden))}
+          aria-label={hidden ? 'إظهار المنتج' : 'إخفاء المنتج'}
           className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
           {hidden ? <EyeOff size={16} /> : <Eye size={16} />}
         </button>
-        <button type="button" onClick={() => onEdit(product)}
+        <button type="button" onClick={() => onEdit(product)} aria-label="تعديل المنتج"
           className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors">
           <Edit size={16} />
         </button>
         <button type="button" onClick={() => { if (confirm('هل أنت متأكد من حذف هذا المنتج؟')) onDelete(product.id); }}
+          aria-label="حذف المنتج"
           className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
           <Trash2 size={16} />
         </button>

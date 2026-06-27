@@ -41,7 +41,7 @@ function AdminPage() {
 
   useEffect(() => { if (isClient && !unlocked) navigate({ to: '/' }); }, [unlocked, navigate, isClient]);
 
-  const { data: products = [], isLoading } = useQuery({
+  const { data: products = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['admin-products'],
     queryFn: fetchAllProducts,
     enabled: unlocked && isClient,
@@ -114,7 +114,16 @@ function AdminPage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-4">
-        {products.length === 0 ? (
+        {isError ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <Package size={48} className="text-destructive/40 mb-4" strokeWidth={1} />
+            <h3 className="text-lg font-bold text-foreground mb-2">تعذّر تحميل المنتجات</h3>
+            <p className="text-sm text-muted-foreground mb-4">تحقّق من اتصال الخادم وحاول مرة أخرى.</p>
+            <button type="button" onClick={() => refetch()} className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity">
+              إعادة المحاولة
+            </button>
+          </div>
+        ) : products.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <Package size={48} className="text-muted-foreground/40 mb-4" strokeWidth={1} />
             <h3 className="text-lg font-bold text-foreground mb-2">لا توجد منتجات</h3>
