@@ -16,6 +16,7 @@ import databasePlugin from './plugins/database.ts';
 import healthRoutes from './routes/health.ts';
 import productsRoutes from './routes/products.ts';
 import uploadRoute from './routes/upload.ts';
+import mediaRoutes from './routes/media.ts';
 import { UPLOADS_BASE, MAX_BYTES } from './services/storage.ts';
 
 export function buildApp(): FastifyInstance {
@@ -59,6 +60,7 @@ export function buildApp(): FastifyInstance {
   app.register(healthRoutes);
   app.register(productsRoutes);
   app.register(uploadRoute);
+  app.register(mediaRoutes);
 
   return app;
 }
