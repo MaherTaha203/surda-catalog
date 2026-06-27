@@ -13,7 +13,8 @@
     "check:css-vars": "node scripts/check-css-variables.js",
     "check:css-classes": "node scripts/check-css-classes.js",
     "lint": "bun run lint:types && bun run lint:js && bun run lint:css && bun run check:css-vars && bun run check:css-classes",
-    "server": "npm --prefix server install --no-audit --no-fund && npm --prefix server start"
+    "server": "npm --prefix server install --no-audit --no-fund && npm --prefix server start",
+    "migrate": "npm --prefix server install --no-audit --no-fund && npm --prefix server run migrate"
   },
   "devDependencies": {
     "typescript": "~6.0.2",

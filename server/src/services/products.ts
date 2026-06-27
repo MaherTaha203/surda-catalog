@@ -49,4 +49,46 @@ export class ProductsService {
       .get() as { n: number };
     return row.n;
   }
+
+  /**
+   * Insert a product, or update it in place when the `id` already exists.
+   * Idempotent by primary key — running a migration twice never duplicates rows.
+   * Preserves the `id` and writes every field exactly as provided.
+   */
+  upsert(p: ProductRow): void {
+    this.db
+      .prepare(
+        `INSERT INTO products
+           (id, name, description, size, cartonQuantity, cartonPrice, imageUrl,
+            category, isHidden, sortOrder, createdAt, updatedAt)
+         VALUES
+           (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           name           = excluded.name,
+           description    = excluded.description,
+           size           = excluded.size,
+           cartonQuantity = excluded.cartonQuantity,
+           cartonPrice    = excluded.cartonPrice,
+           imageUrl       = excluded.imageUrl,
+           category       = excluded.category,
+           isHidden       = excluded.isHidden,
+           sortOrder      = excluded.sortOrder,
+           createdAt      = excluded.createdAt,
+           updatedAt      = excluded.updatedAt`,
+      )
+      .run(
+        p.id,
+        p.name,
+        p.description,
+        p.size,
+        p.cartonQuantity,
+        p.cartonPrice,
+        p.imageUrl,
+        p.category,
+        p.isHidden,
+        p.sortOrder,
+        p.createdAt,
+        p.updatedAt,
+      );
+  }
 }

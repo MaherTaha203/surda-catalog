@@ -9,6 +9,7 @@ import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
 import databasePlugin from './plugins/database.ts';
 import healthRoutes from './routes/health.ts';
+import productsRoutes from './routes/products.ts';
 
 export function buildApp(): FastifyInstance {
   const app = Fastify({
@@ -20,8 +21,9 @@ export function buildApp(): FastifyInstance {
   // Plugins (database decorates `fastify.db`, auto-initializing catalog.db).
   app.register(databasePlugin);
 
-  // Routes — only GET /health in this foundation phase.
+  // Routes.
   app.register(healthRoutes);
+  app.register(productsRoutes);
 
   return app;
 }
