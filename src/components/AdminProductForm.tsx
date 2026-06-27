@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { X, Plus, Upload, Check } from 'lucide-react';
 import { toast } from '@blinkdotnew/ui';
-import { blink } from '@/blink/client';
+import { createProduct, updateProduct, uploadProductImage } from '@/api/products';
 import type { Product, ProductCategory } from '@/types/product';
 
 interface FormData {
@@ -45,11 +45,13 @@ export function AdminProductForm({ open, editingProduct, productCount, onClose, 
   const [imagePreview, setImagePreview] = useState(editingProduct?.imageUrl || '');
   const [uploading, setUploading] = useState(false);
 
-  const uploadImage = useCallback(async (file: File): Promise<string> => {
-    const ext = file.name.split('.').pop() || 'jpg';
-    const { publicUrl } = await blink.storage.upload(file, `products/${Date.now()}.${ext}`);
-    return publicUrl;
-  }, []);
+  const uploadImage = useCallback(
+    async (file: File): Promise<string> => {
+      // Replace: pass the current image so the server deletes the old file.
+      return uploadProductImage(file, editingProduct?.imageUrl || undefined);
+    },
+    [editingProduct],
+  );
 
   const handleSubmit = async () => {
     if (!form.name.trim()) { toast.error('يرجى إدخال اسم المنتج'); return; }
@@ -69,13 +71,12 @@ export function AdminProductForm({ open, editingProduct, productCount, onClose, 
       };
 
       if (editingProduct) {
-        data.updatedAt = new Date().toISOString();
-        await blink.db.table<Product>('products').update(editingProduct.id, data);
+        await updateProduct(editingProduct.id, data);
         toast.success('تم تحديث المنتج');
       } else {
         data.sortOrder = productCount;
         data.isHidden = 0;
-        await blink.db.table<Product>('products').create(data as Record<string, string | number>);
+        await createProduct(data);
         toast.success('تم إضافة المنتج');
       }
       onSaved();
