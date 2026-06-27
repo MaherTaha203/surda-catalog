@@ -32,14 +32,19 @@ export function useProducts() {
     staleTime: 30_000,
   });
 
-  // Try cache first on mount
+  // Seed from the offline cache on mount so products appear instantly — but only
+  // when the query has no data yet. Check the LIVE query cache (not a stale render
+  // closure), otherwise a late-resolving IndexedDB read could clobber fresh data
+  // the network already returned (e.g. showing an old image after a replace).
   useEffect(() => {
     getCachedProducts().then((cached) => {
-      if (cached.length > 0 && products.length === 0) {
+      if (cached.length === 0) return;
+      const current = queryClient.getQueryData<Product[]>(PRODUCTS_KEY);
+      if (!current || current.length === 0) {
         queryClient.setQueryData(PRODUCTS_KEY, cached);
       }
     });
-  }, []);
+  }, [queryClient]);
 
   // Visibility filter + per-category counts depend only on `products` — memoize
   // so typing in the search box doesn't recompute them on every keystroke.
