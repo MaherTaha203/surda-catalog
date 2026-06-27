@@ -26,8 +26,13 @@ The Sarda (سردا) catalog has completed its migration off Blink onto a self-h
 | TypeScript (frontend + server) | ✅ |
 | Production build (no warnings) | ✅ |
 | Hydration (no SSR mismatch) | ✅ |
+| Security headers (helmet) | ✅ |
+| Atomic reorder (transaction) | ✅ |
+| Upload content validation (magic bytes) | ✅ |
+| Accessibility (icon-button labels) | ✅ |
 
-All validated in a real Chromium browser against the live Fastify API.
+All validated via server-level `app.inject` tests and a real Chromium browser against the
+live Fastify API.
 
 ## What this means
 - `@blinkdotnew/sdk` is fully removed; the app's data + images come from the Fastify/SQLite
