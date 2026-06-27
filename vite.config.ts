@@ -40,6 +40,19 @@ export default defineConfig({
     strictPort: true,
     host: true,
     allowedHosts: true,
+    // Dev proxy: the frontend calls the API with same-origin relative paths
+    // (/products, /upload, /uploads, /health); Vite forwards them to the local
+    // API. This keeps requests same-origin in the browser (no wrong-host /
+    // mixed-content failures). Override the target with VITE_DEV_API_PROXY.
+    proxy: Object.fromEntries(
+      ['/products', '/upload', '/uploads', '/health'].map((p) => [
+        p,
+        {
+          target: process.env.VITE_DEV_API_PROXY || 'http://localhost:4000',
+          changeOrigin: true,
+        },
+      ]),
+    ),
   },
   build: {
     // Build into a clean temp dir; scripts/finalize-static-build.mjs then flattens
