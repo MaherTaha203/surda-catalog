@@ -13,6 +13,7 @@ import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import { mkdirSync } from 'node:fs';
 import databasePlugin from './plugins/database.ts';
+import frontendPlugin from './plugins/frontend.ts';
 import healthRoutes from './routes/health.ts';
 import productsRoutes from './routes/products.ts';
 import uploadRoute from './routes/upload.ts';
@@ -61,6 +62,11 @@ export function buildApp(): FastifyInstance {
   app.register(productsRoutes);
   app.register(uploadRoute);
   app.register(mediaRoutes);
+
+  // Serve the built static frontend from the same origin (production single
+  // service). No-op when dist/ is absent (API-only dev). Registered last so the
+  // API routes above always take precedence over the SPA fallback.
+  app.register(frontendPlugin);
 
   return app;
 }

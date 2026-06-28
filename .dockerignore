@@ -1,0 +1,21 @@
+# Keep the build context small and never ship local state into the image.
+.git
+node_modules
+server/node_modules
+dist
+dist-ssr
+.vite-out
+
+# Local data must never be baked into the image — it lives on the Railway Volume.
+**/catalog.db
+**/catalog.db-*
+*.db
+*.db-*
+server/uploads
+uploads
+
+# Misc
+*.log
+.DS_Store
+.env
+.env.*
