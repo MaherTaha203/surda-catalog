@@ -21,6 +21,9 @@ interface FormData {
   size: string;
   cartonQuantity: string;
   cartonPrice: string;
+  offerPrice: string;
+  offerQuantity: string;
+  bonusQuantity: string;
   category: ProductCategory;
 }
 
@@ -34,7 +37,9 @@ interface AdminProductFormProps {
 
 const emptyForm: FormData = {
   name: '', description: '', size: '',
-  cartonQuantity: '', cartonPrice: '', category: 'مواد التنظيف',
+  cartonQuantity: '', cartonPrice: '',
+  offerPrice: '', offerQuantity: '', bonusQuantity: '',
+  category: 'مواد التنظيف',
 };
 
 export function AdminProductForm({ open, editingProduct, productCount, onClose, onSaved }: AdminProductFormProps) {
@@ -46,6 +51,9 @@ export function AdminProductForm({ open, editingProduct, productCount, onClose, 
         size: editingProduct.size || '',
         cartonQuantity: String(editingProduct.cartonQuantity || ''),
         cartonPrice: String(editingProduct.cartonPrice || ''),
+        offerPrice: String(editingProduct.offerPrice || ''),
+        offerQuantity: String(editingProduct.offerQuantity || ''),
+        bonusQuantity: String(editingProduct.bonusQuantity || ''),
         category: editingProduct.category as ProductCategory,
       };
     }
@@ -95,6 +103,9 @@ export function AdminProductForm({ open, editingProduct, productCount, onClose, 
         size: form.category === 'مواد التنظيف' ? form.size.trim() : '',
         cartonQuantity: parseInt(form.cartonQuantity) || 0,
         cartonPrice: parseFloat(form.cartonPrice) || 0,
+        offerPrice: parseFloat(form.offerPrice) || 0,
+        offerQuantity: parseInt(form.offerQuantity) || 0,
+        bonusQuantity: parseInt(form.bonusQuantity) || 0,
         category: form.category,
         imageUrl,
       };
@@ -182,6 +193,24 @@ export function AdminProductForm({ open, editingProduct, productCount, onClose, 
               <label className="block text-sm font-medium text-foreground mb-1.5">سعر الكرتون (₪)</label>
               <input type="number" step="0.01" value={form.cartonPrice} onChange={(e) => setForm({ ...form, cartonPrice: e.target.value })}
                 className="w-full h-11 px-4 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring" placeholder="0.00" />
+            </div>
+          </div>
+          {/* Offer: price, quantity, bonus (entered manually — nothing is calculated) */}
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">سعر العرض (₪)</label>
+              <input type="number" step="0.01" value={form.offerPrice} onChange={(e) => setForm({ ...form, offerPrice: e.target.value })}
+                className="w-full h-11 px-4 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring" placeholder="0.00" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">كمية العرض</label>
+              <input type="number" value={form.offerQuantity} onChange={(e) => setForm({ ...form, offerQuantity: e.target.value })}
+                className="w-full h-11 px-4 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring" placeholder="0" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">الكمية المجانية</label>
+              <input type="number" value={form.bonusQuantity} onChange={(e) => setForm({ ...form, bonusQuantity: e.target.value })}
+                className="w-full h-11 px-4 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring" placeholder="0" />
             </div>
           </div>
           {/* Image */}

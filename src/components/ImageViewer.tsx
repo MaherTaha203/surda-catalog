@@ -7,17 +7,32 @@ interface ImageViewerProps {
   alt: string;
   open: boolean;
   onClose: () => void;
+  /** Optional gallery — swipe horizontally to navigate. Defaults to the single `src`. */
+  images?: string[];
+  initialIndex?: number;
 }
 
-export function ImageViewer({ src, alt, open, onClose }: ImageViewerProps) {
+export function ImageViewer({ src, alt, open, onClose, images, initialIndex = 0 }: ImageViewerProps) {
+  const gallery = images && images.length > 0 ? images : [src];
+  const [index, setIndex] = useState(Math.min(initialIndex, gallery.length - 1));
   const [scale, setScale] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const lastTap = useRef(0);
   const initialDistance = useRef(0);
   const initialScale = useRef(1);
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
 
   const resetZoom = useCallback(() => setScale(1), []);
+
+  const goTo = useCallback(
+    (next: number) => {
+      if (next < 0 || next >= gallery.length) return;
+      setIndex(next);
+      setScale(1);
+    },
+    [gallery.length],
+  );
 
   // Close on Escape
   useEffect(() => {
@@ -47,8 +62,13 @@ export function ImageViewer({ src, alt, open, onClose }: ImageViewerProps) {
 
   const handleTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 2) {
+      // Pinch takes over — cancel any pending swipe.
+      swipeStart.current = null;
       initialDistance.current = getDistance(e.touches);
       initialScale.current = scale;
+    } else if (e.touches.length === 1 && scale === 1) {
+      // Only track swipes at rest zoom; when zoomed, one finger pans the image.
+      swipeStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     }
   };
 
@@ -58,6 +78,20 @@ export function ImageViewer({ src, alt, open, onClose }: ImageViewerProps) {
       const newScale = Math.min(5, Math.max(0.5, initialScale.current * (dist / initialDistance.current)));
       setScale(newScale);
     }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const start = swipeStart.current;
+    swipeStart.current = null;
+    if (!start || scale !== 1 || gallery.length < 2 || e.touches.length > 0) return;
+    const touch = e.changedTouches[0];
+    if (!touch) return;
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    // Horizontal-dominant swipe past the threshold navigates the gallery.
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    if (dx < 0) goTo(index + 1); // swipe left → next
+    else goTo(index - 1); // swipe right → previous
   };
 
   // Click handler for double tap detection
@@ -132,7 +166,7 @@ export function ImageViewer({ src, alt, open, onClose }: ImageViewerProps) {
 
           <motion.img
             ref={imageRef}
-            src={src}
+            src={gallery[index]}
             alt={alt}
             onClick={(e) => {
               e.stopPropagation();
@@ -140,7 +174,12 @@ export function ImageViewer({ src, alt, open, onClose }: ImageViewerProps) {
             }}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
-            animate={{ scale }}
+            onTouchEnd={handleTouchEnd}
+            drag={scale > 1}
+            dragConstraints={containerRef}
+            dragElastic={0.2}
+            dragMomentum={false}
+            animate={{ scale, ...(scale === 1 ? { x: 0, y: 0 } : {}) }}
             transition={{ type: 'spring', stiffness: 300, damping: 25 }}
             className="max-w-[95vw] max-h-[90vh] object-contain cursor-pointer"
             style={{ touchAction: 'none' }}

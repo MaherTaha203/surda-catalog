@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { createFileRoute, useParams, useNavigate } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
-import { ArrowRight, Package, Box } from 'lucide-react';
+import { ArrowRight, Package, PackageOpen } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { getProduct } from '@/api/products';
 import { getCachedProducts } from '@/lib/offline-db';
@@ -137,17 +137,44 @@ function ProductDetailPage() {
               </div>
             )}
             <div className="p-4 rounded-xl bg-card border border-border text-center">
-              <Box size={16} className="mx-auto mb-1 text-muted-foreground" />
               <p className="text-xs text-muted-foreground mb-1">الكمية في الكرتون</p>
-              <p className="text-base font-bold text-foreground">
-                {Number(product.cartonQuantity).toLocaleString('ar-SA')}
+              <p className="text-base font-bold text-foreground flex items-center justify-center gap-1.5">
+                <span>{Number(product.cartonQuantity).toLocaleString('en-US')}</span>
+                <span className="text-muted-foreground">×</span>
+                <PackageOpen size={18} className="text-muted-foreground" />
               </p>
             </div>
-            <div className="p-4 rounded-xl bg-accent/10 border border-accent/20 text-center col-span-2 sm:col-span-1">
-              <p className="text-xs text-muted-foreground mb-1">سعر الكرتون</p>
-              <p className="text-xl font-extrabold text-accent">
-                ₪{Number(product.cartonPrice).toLocaleString('ar-SA')}
-              </p>
+            {/* Price card — same footprint, split into two equal halves: carton (left) / offer (right) */}
+            <div className="rounded-xl bg-accent/10 border border-accent/20 text-center col-span-2 sm:col-span-1 grid grid-cols-2">
+              <div className="p-4 order-1 border-r border-accent/20">
+                <p className="text-xs text-muted-foreground mb-1">سعر الكرتون</p>
+                <p className="text-xl font-extrabold text-accent">
+                  ₪{Number(product.cartonPrice).toLocaleString('en-US')}
+                </p>
+              </div>
+              <div className="p-4">
+                <p className="text-xs text-muted-foreground mb-1">سعر العرض</p>
+                <p className="text-xl font-extrabold text-accent">
+                  {product.offerPrice ? `₪${Number(product.offerPrice).toLocaleString('en-US')}` : '—'}
+                </p>
+                {(product.offerQuantity > 0 || product.bonusQuantity > 0) && (
+                  <p
+                    dir="ltr"
+                    className="text-[10px] font-medium text-muted-foreground leading-tight mt-0.5 flex items-center justify-center gap-0.5"
+                  >
+                    <span>{Number(product.offerQuantity).toLocaleString('en-US')}</span>
+                    <span>×</span>
+                    <PackageOpen size={11} className="shrink-0" />
+                    {product.bonusQuantity > 0 && (
+                      <>
+                        <span className="mx-0.5">+</span>
+                        <span>{Number(product.bonusQuantity).toLocaleString('en-US')}</span>
+                        <PackageOpen size={11} className="shrink-0 text-accent" />
+                      </>
+                    )}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         </motion.div>

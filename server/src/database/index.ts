@@ -11,7 +11,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { existsSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { PRODUCTS_TABLE_DDL, PRODUCTS_INDEXES_DDL } from './schema.ts';
+import { PRODUCTS_TABLE_DDL, PRODUCTS_INDEXES_DDL, PRODUCTS_MIGRATION_COLUMNS } from './schema.ts';
 
 /** Absolute path to the SQLite file. Override with CATALOG_DB_PATH. */
 export const DB_PATH =
@@ -43,6 +43,14 @@ export function initDatabase(dbPath: string = DB_PATH): InitializedDatabase {
   // Schema (idempotent).
   db.exec(PRODUCTS_TABLE_DDL);
   db.exec(PRODUCTS_INDEXES_DDL);
+
+  // Add columns introduced after the initial release to pre-existing databases.
+  const existing = new Set(
+    (db.prepare('PRAGMA table_info(products)').all() as { name: string }[]).map((c) => c.name),
+  );
+  for (const col of PRODUCTS_MIGRATION_COLUMNS) {
+    if (!existing.has(col.name)) db.exec(col.ddl);
+  }
 
   return { db, dbPath, created };
 }

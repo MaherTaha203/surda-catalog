@@ -49,6 +49,9 @@ function buildPatch(body: Record<string, unknown>): ProductUpdate {
   if ('size' in body) patch.size = toStr(body.size);
   if ('cartonQuantity' in body) patch.cartonQuantity = toInt(body.cartonQuantity);
   if ('cartonPrice' in body) patch.cartonPrice = toNum(body.cartonPrice);
+  if ('offerPrice' in body) patch.offerPrice = toNum(body.offerPrice);
+  if ('offerQuantity' in body) patch.offerQuantity = toInt(body.offerQuantity);
+  if ('bonusQuantity' in body) patch.bonusQuantity = toInt(body.bonusQuantity);
   if ('imageUrl' in body) patch.imageUrl = toStr(body.imageUrl);
   if ('category' in body) patch.category = toStr(body.category);
   if ('isHidden' in body) patch.isHidden = toInt(body.isHidden);
@@ -110,6 +113,9 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
       size: toStr(body.size),
       cartonQuantity: toInt(body.cartonQuantity),
       cartonPrice: toNum(body.cartonPrice),
+      offerPrice: toNum(body.offerPrice),
+      offerQuantity: toInt(body.offerQuantity),
+      bonusQuantity: toInt(body.bonusQuantity),
       imageUrl: toStr(body.imageUrl),
       category,
       isHidden: toInt(body.isHidden),
