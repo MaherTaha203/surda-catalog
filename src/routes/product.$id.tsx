@@ -93,7 +93,7 @@ function ProductDetailPage() {
               <img
                 src={product.imageUrl}
                 alt={product.name}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain"
               />
             ) : (
               <div className="flex items-center justify-center w-full h-full text-muted-foreground">
