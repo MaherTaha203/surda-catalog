@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PinPad } from '@/components/PinPad';
-import { getDisplayPin, getAdminPin, unlockPin, unlockAdmin, isPinUnlocked } from '@/lib/storage';
+import { getAdminPin, unlockPin, unlockAdmin, isPinUnlocked } from '@/lib/storage';
 import { useIsClient } from '@/hooks/useIsClient';
 
 export const Route = createFileRoute('/')({
@@ -14,7 +14,7 @@ export const Route = createFileRoute('/')({
 
 function PinGate() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<'idle' | 'display' | 'admin'>('idle');
+  const [mode, setMode] = useState<'idle' | 'admin'>('idle');
   const [checked, setChecked] = useState(false);
   const isClient = useIsClient();
 
@@ -60,7 +60,7 @@ function PinGate() {
             <motion.button
               type="button"
               whileTap={{ scale: 0.97 }}
-              onClick={() => setMode('display')}
+              onClick={() => navigate({ to: '/catalog' })}
               className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-lg shadow-sm hover:opacity-90 transition-opacity"
             >
               فتح الكتالوج
@@ -69,7 +69,7 @@ function PinGate() {
               type="button"
               whileTap={{ scale: 0.97 }}
               onClick={() => setMode('admin')}
-              className="w-full py-3 rounded-xl border-2 border-border text-muted-foreground font-medium text-sm hover:bg-muted/50 transition-colors"
+              className="hidden lg:block w-full py-3 rounded-xl border-2 border-border text-muted-foreground font-medium text-sm hover:bg-muted/50 transition-colors"
             >
               لوحة المدير
             </motion.button>
@@ -79,30 +79,6 @@ function PinGate() {
           <p className="mt-12 text-[11px] text-muted-foreground/50">الإصدار 1.0</p>
         </motion.div>
       </div>
-    );
-  }
-
-  if (mode === 'display') {
-    return (
-      <AnimatePresence>
-        <motion.div
-          key="display-pin"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-        >
-          <PinPad
-            title="رمز الدخول"
-            subtitle="أدخل رمز الدخول لعرض الكتالوج"
-            correctPin={getDisplayPin()}
-            onSuccess={() => {
-              unlockPin();
-              navigate({ to: '/catalog' });
-            }}
-            onBack={() => setMode('idle')}
-          />
-        </motion.div>
-      </AnimatePresence>
     );
   }
 

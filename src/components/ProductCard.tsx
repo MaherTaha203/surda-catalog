@@ -39,7 +39,7 @@ export function ProductCard({ product, index }: ProductCardProps) {
                   e.currentTarget.src = product.imageUrl;
                 }
               }}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-400"
+              className="w-full h-full object-contain"
             />
           ) : (
             <div className="flex items-center justify-center w-full h-full text-muted-foreground">

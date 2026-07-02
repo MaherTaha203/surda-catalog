@@ -1,10 +1,9 @@
-import { useEffect, useMemo } from 'react';
 import { createFileRoute, useNavigate, Link } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
 import { Search, Lock, Settings, LogOut, Package, Droplets, Brush } from 'lucide-react';
 import { useProducts } from '@/hooks/useProducts';
 import { ProductCard } from '@/components/ProductCard';
-import { getCompanyLogo, isPinUnlocked, lockPin, isAdminUnlocked } from '@/lib/storage';
+import { getCompanyLogo, lockPin, isAdminUnlocked } from '@/lib/storage';
 import { useIsClient } from '@/hooks/useIsClient';
 import type { ProductCategory } from '@/types/product';
 
@@ -30,14 +29,7 @@ function CatalogPage() {
 
   const companyLogo = getCompanyLogo();
   const adminMode = isAdminUnlocked();
-  const unlocked = isPinUnlocked();
   const isClient = useIsClient();
-
-  useEffect(() => {
-    if (isClient && !unlocked) {
-      navigate({ to: '/' });
-    }
-  }, [unlocked, navigate, isClient]);
 
   const handleLogout = () => {
     lockPin();
@@ -50,7 +42,7 @@ function CatalogPage() {
     { id: 'أدوات التنظيف', label: 'أدوات التنظيف', icon: <Brush size={16} />, count: counts['أدوات التنظيف'] },
   ];
 
-  if (!isClient || !unlocked) return null;
+  if (!isClient) return null;
 
   return (
     <div className="min-h-dvh bg-background" dir="rtl">
