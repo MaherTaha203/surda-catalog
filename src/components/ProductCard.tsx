@@ -18,15 +18,16 @@ export function ProductCard({ product, index }: ProductCardProps) {
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: index * 0.06 }}
+      className="h-full"
     >
       <Link
         to="/product/$id"
         params={{ id: product.id }}
-        className="group block rounded-2xl bg-card border border-border overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 active:scale-[0.98]"
+        className="group flex flex-col h-full rounded-2xl bg-card border border-border overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 active:scale-[0.98]"
         dir="rtl"
       >
-        {/* Image */}
-        <div className="relative aspect-[4/3] bg-muted overflow-hidden">
+        {/* Image — fixed 4:3 frame; the image adapts to the frame, never the reverse */}
+        <div className="relative aspect-[4/3] shrink-0 bg-muted overflow-hidden">
           {product.imageUrl ? (
             <img
               src={thumbUrl}
@@ -39,7 +40,7 @@ export function ProductCard({ product, index }: ProductCardProps) {
                   e.currentTarget.src = product.imageUrl;
                 }
               }}
-              className="w-full h-full object-contain"
+              className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-400"
             />
           ) : (
             <div className="flex items-center justify-center w-full h-full text-muted-foreground">
@@ -52,24 +53,22 @@ export function ProductCard({ product, index }: ProductCardProps) {
           </span>
         </div>
 
-        {/* Content */}
-        <div className="p-4">
+        {/* Content — description space is always reserved so every card has identical dimensions */}
+        <div className="p-4 flex flex-col flex-1">
           <h3 className="font-bold text-base text-foreground leading-tight mb-1 line-clamp-1">
             {product.name}
           </h3>
-          {product.description && (
-            <p className="text-xs text-muted-foreground leading-relaxed mb-3 line-clamp-2">
-              {product.description}
-            </p>
-          )}
-          <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground leading-relaxed mb-3 line-clamp-2 min-h-[2.4375rem]">
+            {product.description || ' '}
+          </p>
+          <div className="flex items-center justify-between gap-2 mt-auto">
             {product.size && (
               <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
                 {product.size}
               </span>
             )}
             <span className="font-bold text-lg text-accent ml-auto">
-              ₪{Number(product.cartonPrice).toLocaleString('ar-SA')}
+              ₪{Number(product.cartonPrice).toLocaleString('en-US')}
             </span>
           </div>
         </div>

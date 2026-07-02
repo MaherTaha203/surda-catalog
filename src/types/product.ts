@@ -7,6 +7,9 @@ export interface Product {
   size: string;
   cartonQuantity: number;
   cartonPrice: number;
+  offerPrice: number;
+  offerQuantity: number;
+  bonusQuantity: number;
   imageUrl: string;
   category: ProductCategory;
   isHidden: number;

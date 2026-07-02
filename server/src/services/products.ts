@@ -17,6 +17,9 @@ export interface ProductRow {
   size: string;
   cartonQuantity: number;
   cartonPrice: number;
+  offerPrice: number;
+  offerQuantity: number;
+  bonusQuantity: number;
   imageUrl: string;
   category: string;
   isHidden: number;
@@ -32,6 +35,9 @@ export interface NewProduct {
   size?: string;
   cartonQuantity?: number;
   cartonPrice?: number;
+  offerPrice?: number;
+  offerQuantity?: number;
+  bonusQuantity?: number;
   imageUrl?: string;
   category: string;
   isHidden?: number;
@@ -96,16 +102,20 @@ export class ProductsService {
   upsert(p: ProductRow): void {
     this.prep(
         `INSERT INTO products
-           (id, name, description, size, cartonQuantity, cartonPrice, imageUrl,
+           (id, name, description, size, cartonQuantity, cartonPrice,
+            offerPrice, offerQuantity, bonusQuantity, imageUrl,
             category, isHidden, sortOrder, createdAt, updatedAt)
          VALUES
-           (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            name           = excluded.name,
            description    = excluded.description,
            size           = excluded.size,
            cartonQuantity = excluded.cartonQuantity,
            cartonPrice    = excluded.cartonPrice,
+           offerPrice     = excluded.offerPrice,
+           offerQuantity  = excluded.offerQuantity,
+           bonusQuantity  = excluded.bonusQuantity,
            imageUrl       = excluded.imageUrl,
            category       = excluded.category,
            isHidden       = excluded.isHidden,
@@ -120,6 +130,9 @@ export class ProductsService {
         p.size,
         p.cartonQuantity,
         p.cartonPrice,
+        p.offerPrice,
+        p.offerQuantity,
+        p.bonusQuantity,
         p.imageUrl,
         p.category,
         p.isHidden,
@@ -143,6 +156,9 @@ export class ProductsService {
       size: input.size ?? '',
       cartonQuantity: input.cartonQuantity ?? 0,
       cartonPrice: input.cartonPrice ?? 0,
+      offerPrice: input.offerPrice ?? 0,
+      offerQuantity: input.offerQuantity ?? 0,
+      bonusQuantity: input.bonusQuantity ?? 0,
       imageUrl: input.imageUrl ?? '',
       category: input.category,
       isHidden: input.isHidden ?? 0,

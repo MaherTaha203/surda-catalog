@@ -20,6 +20,9 @@ CREATE TABLE IF NOT EXISTS products (
   size           TEXT    NOT NULL DEFAULT '',
   cartonQuantity INTEGER NOT NULL DEFAULT 0,
   cartonPrice    REAL    NOT NULL DEFAULT 0,
+  offerPrice     REAL    NOT NULL DEFAULT 0,
+  offerQuantity  INTEGER NOT NULL DEFAULT 0,
+  bonusQuantity  INTEGER NOT NULL DEFAULT 0,
   imageUrl       TEXT    NOT NULL DEFAULT '',
   category       TEXT    NOT NULL,
   isHidden       INTEGER NOT NULL DEFAULT 0,
@@ -37,3 +40,13 @@ export const PRODUCTS_INDEXES_DDL = `
 CREATE INDEX IF NOT EXISTS idx_products_sortOrder ON products (sortOrder);
 CREATE INDEX IF NOT EXISTS idx_products_category  ON products (category);
 `;
+
+/**
+ * Columns added after the initial release. `CREATE TABLE IF NOT EXISTS` does not
+ * alter existing databases, so init applies these with ALTER TABLE when missing.
+ */
+export const PRODUCTS_MIGRATION_COLUMNS: { name: string; ddl: string }[] = [
+  { name: 'offerPrice', ddl: 'ALTER TABLE products ADD COLUMN offerPrice REAL NOT NULL DEFAULT 0' },
+  { name: 'offerQuantity', ddl: 'ALTER TABLE products ADD COLUMN offerQuantity INTEGER NOT NULL DEFAULT 0' },
+  { name: 'bonusQuantity', ddl: 'ALTER TABLE products ADD COLUMN bonusQuantity INTEGER NOT NULL DEFAULT 0' },
+];
