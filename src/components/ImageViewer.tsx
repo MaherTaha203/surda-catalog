@@ -174,7 +174,7 @@ export function ImageViewer({ src, alt, open, onClose, onNavigate, hasNext, hasP
                 navigate(1);
               }}
               aria-label="المنتج التالي"
-              className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-background/10 text-background hover:bg-background/20 transition-colors"
+              className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 hidden lg:flex items-center justify-center rounded-full bg-background/10 text-background hover:bg-background/20 transition-colors"
             >
               <ChevronLeft size={22} />
             </button>
@@ -187,7 +187,7 @@ export function ImageViewer({ src, alt, open, onClose, onNavigate, hasNext, hasP
                 navigate(-1);
               }}
               aria-label="المنتج السابق"
-              className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-background/10 text-background hover:bg-background/20 transition-colors"
+              className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 hidden lg:flex items-center justify-center rounded-full bg-background/10 text-background hover:bg-background/20 transition-colors"
             >
               <ChevronRight size={22} />
             </button>

@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Edit, Trash2, Eye, EyeOff, Package } from 'lucide-react';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import type { Product } from '@/types/product';
 
 interface AdminProductRowProps {
@@ -22,6 +24,7 @@ export function AdminProductRow({
   onEdit, onDelete, onToggleHide, onMoveUp, onMoveDown,
 }: AdminProductRowProps) {
   const hidden = Number(product.isHidden) > 0;
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
     <motion.div
@@ -69,12 +72,25 @@ export function AdminProductRow({
           <Edit size={16} />
         </button>
         <button type="button" disabled={deleteDisabled}
-          onClick={() => { if (confirm('هل أنت متأكد من حذف هذا المنتج؟')) onDelete(product.id); }}
+          onClick={() => setConfirmDelete(true)}
           aria-label="حذف المنتج"
           className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40">
           <Trash2 size={16} />
         </button>
       </div>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title="حذف المنتج"
+        description={`سيتم حذف «${product.name}» نهائياً مع صورته. لا يمكن التراجع عن هذا الإجراء.`}
+        confirmLabel="حذف"
+        destructive
+        onConfirm={() => {
+          setConfirmDelete(false);
+          onDelete(product.id);
+        }}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </motion.div>
   );
 }

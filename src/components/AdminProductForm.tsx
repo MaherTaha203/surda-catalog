@@ -4,6 +4,7 @@ import { X, Plus, Upload, Check } from 'lucide-react';
 import { toast } from '@blinkdotnew/ui';
 import { createProduct, updateProduct, uploadProductImage } from '@/api/products';
 import { compressProductImage, ImageValidationError } from '@/lib/image-compression';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import type { Product, ProductCategory } from '@/types/product';
 
 type UploadStatus = 'idle' | 'preparing' | 'compressing' | 'uploading' | 'processing' | 'completed';
@@ -65,6 +66,7 @@ export function AdminProductForm({ open, editingProduct, productCount, onClose, 
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState(editingProduct?.imageUrl || '');
   const [status, setStatus] = useState<UploadStatus>('idle');
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const busy = status !== 'idle' && status !== 'completed';
 
   // The initial snapshot never changes after mount — used for the dirty check.
@@ -75,11 +77,16 @@ export function AdminProductForm({ open, editingProduct, productCount, onClose, 
   // discarding edits (a stray tap outside used to wipe all input).
   const requestClose = () => {
     if (busy) return;
-    if (isDirty && !confirm('لديك تغييرات غير محفوظة. هل تريد الإغلاق دون حفظ؟')) return;
+    if (isDirty) {
+      setConfirmDiscard(true);
+      return;
+    }
     onClose();
   };
   const requestCloseRef = useRef(requestClose);
   requestCloseRef.current = requestClose;
+  const confirmDiscardRef = useRef(confirmDiscard);
+  confirmDiscardRef.current = confirmDiscard;
 
   // A click only counts as a backdrop click when the press ALSO started there —
   // dragging out of a text field and releasing outside must not close the form.
@@ -88,7 +95,8 @@ export function AdminProductForm({ open, editingProduct, productCount, onClose, 
   // Escape closes (same guarded path) + page scroll is locked behind the modal.
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') requestCloseRef.current();
+      // While the discard confirmation is up, Escape belongs to it.
+      if (e.key === 'Escape' && !confirmDiscardRef.current) requestCloseRef.current();
     };
     window.addEventListener('keydown', handleKey);
     const previousOverflow = document.body.style.overflow;
@@ -313,6 +321,20 @@ export function AdminProductForm({ open, editingProduct, productCount, onClose, 
           </button>
         </div>
       </motion.div>
+
+      <ConfirmDialog
+        open={confirmDiscard}
+        title="تجاهل التغييرات؟"
+        description="لديك تغييرات غير محفوظة. إذا أغلقت الآن فستفقد ما أدخلته."
+        confirmLabel="إغلاق دون حفظ"
+        cancelLabel="متابعة التحرير"
+        destructive
+        onConfirm={() => {
+          setConfirmDiscard(false);
+          onClose();
+        }}
+        onCancel={() => setConfirmDiscard(false)}
+      />
     </motion.div>
   );
 }

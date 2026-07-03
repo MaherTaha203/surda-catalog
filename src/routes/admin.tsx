@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { createFileRoute, useNavigate, Link } from '@tanstack/react-router';
 import { AnimatePresence } from 'framer-motion';
-import { ArrowRight, Plus, Package, Search, X } from 'lucide-react';
+import { ArrowRight, Plus, Package, Search, Settings, X } from 'lucide-react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { toast } from '@blinkdotnew/ui';
 import {
@@ -118,9 +118,18 @@ function AdminPage() {
           </Link>
           <h1 className="text-lg font-bold text-foreground">لوحة التحكم</h1>
         </div>
-        <button type="button" onClick={startAdd} className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity">
-          <Plus size={16} aria-hidden /> إضافة منتج
-        </button>
+        <div className="flex items-center gap-1.5">
+          <Link
+            to="/settings"
+            aria-label="إعدادات الكتالوج"
+            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          >
+            <Settings size={18} />
+          </Link>
+          <button type="button" onClick={startAdd} className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity">
+            <Plus size={16} aria-hidden /> إضافة منتج
+          </button>
+        </div>
       </div>
     </header>
   );
