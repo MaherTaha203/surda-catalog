@@ -6,6 +6,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getProduct } from '@/api/products';
 import { getCachedProducts } from '@/lib/offline-db';
 import { fetchProducts, PRODUCTS_KEY } from '@/hooks/useProducts';
+import { useCatalogSettings } from '@/hooks/useCatalogSettings';
+import { useDisplayPrefs, FONT_CLASSES } from '@/lib/display-prefs';
 import { ImageViewer } from '@/components/ImageViewer';
 import type { Product } from '@/types/product';
 
@@ -54,6 +56,11 @@ function ProductDetailPage() {
   const queryClient = useQueryClient();
   const [viewerOpen, setViewerOpen] = useState(false);
 
+  const settings = useCatalogSettings();
+  const { prefs } = useDisplayPrefs();
+  const font = FONT_CLASSES[prefs.fontScale];
+  const showPrices = settings.showPrices && prefs.showPrices;
+
   // Coming from the catalog, history back restores its scroll position and
   // filters; on a deep link (no in-app history) fall back to the catalog.
   const goBack = () => {
@@ -84,9 +91,11 @@ function ProductDetailPage() {
     queryFn: fetchProducts,
     staleTime: 30_000,
   });
+  // With a default image configured, imageless products are viewable too.
+  const defaultImage = settings.defaultProductImageUrl;
   const viewerSiblings = useMemo(
-    () => (allProducts ?? []).filter((p) => Number(p.isHidden) === 0 && p.imageUrl),
-    [allProducts],
+    () => (allProducts ?? []).filter((p) => Number(p.isHidden) === 0 && (p.imageUrl || defaultImage)),
+    [allProducts, defaultImage],
   );
   const viewerIndex = viewerSiblings.findIndex((p) => p.id === id);
   const viewerPrev = viewerIndex > 0 ? viewerSiblings[viewerIndex - 1] : undefined;
@@ -140,6 +149,7 @@ function ProductDetailPage() {
   }
 
   const hasOffer = Number(product.offerPrice) > 0;
+  const effectiveImage = product.imageUrl || defaultImage;
 
   return (
     <div className="min-h-dvh bg-background" dir="rtl">
@@ -154,14 +164,14 @@ function ProductDetailPage() {
         >
           <button
             type="button"
-            disabled={!product.imageUrl}
+            disabled={!effectiveImage}
             onClick={() => setViewerOpen(true)}
             aria-label="عرض الصورة بالحجم الكامل"
             className="group relative block w-full aspect-[4/3] rounded-2xl bg-muted overflow-hidden shadow-md disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
           >
-            {product.imageUrl ? (
+            {effectiveImage ? (
               <img
-                src={product.imageUrl}
+                src={effectiveImage}
                 alt={product.name}
                 decoding="async"
                 fetchPriority="high"
@@ -172,7 +182,7 @@ function ProductDetailPage() {
                 <Package size={64} strokeWidth={1} aria-hidden />
               </div>
             )}
-            {product.imageUrl && (
+            {effectiveImage && (
               <>
                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity bg-foreground/10">
                   <span className="px-4 py-2 rounded-xl bg-background/90 text-sm font-medium shadow-sm backdrop-blur-sm">
@@ -185,7 +195,7 @@ function ProductDetailPage() {
                 </span>
               </>
             )}
-            <span className="absolute top-2 right-2 px-3 py-1 rounded-full text-xs font-medium bg-background/90 text-foreground shadow-sm">
+            <span className={`absolute top-2 right-2 px-3 py-1 rounded-full font-medium bg-background/90 text-foreground shadow-sm ${font.detailBadge}`}>
               {product.category}
             </span>
           </button>
@@ -198,10 +208,10 @@ function ProductDetailPage() {
           transition={{ duration: 0.4, delay: 0.1 }}
           className="mt-6 space-y-4"
         >
-          <h1 className="text-2xl font-bold text-foreground">{product.name}</h1>
+          <h1 className={`font-bold text-foreground ${font.detailName}`}>{product.name}</h1>
 
           {product.description && (
-            <p className="text-base text-muted-foreground leading-relaxed whitespace-pre-line">
+            <p className={`text-muted-foreground leading-relaxed whitespace-pre-line ${font.detailDesc}`}>
               {product.description}
             </p>
           )}
@@ -222,56 +232,57 @@ function ProductDetailPage() {
                 <PackageOpen size={18} className="text-muted-foreground" aria-hidden />
               </p>
             </div>
-            {hasOffer ? (
-              /* Price card — same footprint, split into two equal halves: carton (left) / offer (right) */
-              <div className="rounded-xl bg-accent/10 border border-accent/20 text-center col-span-2 sm:col-span-1 grid grid-cols-2">
-                <div className="p-4 order-1 border-r border-accent/20">
+            {showPrices &&
+              (hasOffer ? (
+                /* Price card — same footprint, split into two equal halves: carton (left) / offer (right) */
+                <div className="rounded-xl bg-accent/10 border border-accent/20 text-center col-span-2 sm:col-span-1 grid grid-cols-2">
+                  <div className="p-4 order-1 border-r border-accent/20">
+                    <p className="text-xs text-muted-foreground mb-1">سعر الكرتون</p>
+                    <p className={`font-extrabold text-accent ${font.detailPrice}`}>
+                      ₪{Number(product.cartonPrice).toLocaleString('en-US')}
+                    </p>
+                  </div>
+                  <div className="p-4">
+                    <p className="text-xs text-muted-foreground mb-1">سعر العرض</p>
+                    <p className={`font-extrabold text-accent ${font.detailPrice}`}>
+                      ₪{Number(product.offerPrice).toLocaleString('en-US')}
+                    </p>
+                    {(product.offerQuantity > 0 || product.bonusQuantity > 0) && (
+                      <p
+                        dir="ltr"
+                        className={`font-medium text-muted-foreground leading-tight mt-0.5 flex items-center justify-center gap-0.5 ${font.detailOffer}`}
+                      >
+                        <span>{Number(product.offerQuantity).toLocaleString('en-US')}</span>
+                        <span aria-hidden>×</span>
+                        <PackageOpen size={11} className="shrink-0" aria-hidden />
+                        {product.bonusQuantity > 0 && (
+                          <>
+                            <span className="mx-0.5" aria-hidden>+</span>
+                            <span>{Number(product.bonusQuantity).toLocaleString('en-US')}</span>
+                            <PackageOpen size={11} className="shrink-0 text-accent" aria-hidden />
+                          </>
+                        )}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                /* No offer → one full-width carton-price cell instead of a split card with a dash */
+                <div className="p-4 rounded-xl bg-accent/10 border border-accent/20 text-center col-span-2 sm:col-span-1">
                   <p className="text-xs text-muted-foreground mb-1">سعر الكرتون</p>
-                  <p className="text-xl font-extrabold text-accent">
+                  <p className={`font-extrabold text-accent ${font.detailPrice}`}>
                     ₪{Number(product.cartonPrice).toLocaleString('en-US')}
                   </p>
                 </div>
-                <div className="p-4">
-                  <p className="text-xs text-muted-foreground mb-1">سعر العرض</p>
-                  <p className="text-xl font-extrabold text-accent">
-                    ₪{Number(product.offerPrice).toLocaleString('en-US')}
-                  </p>
-                  {(product.offerQuantity > 0 || product.bonusQuantity > 0) && (
-                    <p
-                      dir="ltr"
-                      className="text-[10px] font-medium text-muted-foreground leading-tight mt-0.5 flex items-center justify-center gap-0.5"
-                    >
-                      <span>{Number(product.offerQuantity).toLocaleString('en-US')}</span>
-                      <span aria-hidden>×</span>
-                      <PackageOpen size={11} className="shrink-0" aria-hidden />
-                      {product.bonusQuantity > 0 && (
-                        <>
-                          <span className="mx-0.5" aria-hidden>+</span>
-                          <span>{Number(product.bonusQuantity).toLocaleString('en-US')}</span>
-                          <PackageOpen size={11} className="shrink-0 text-accent" aria-hidden />
-                        </>
-                      )}
-                    </p>
-                  )}
-                </div>
-              </div>
-            ) : (
-              /* No offer → one full-width carton-price cell instead of a split card with a dash */
-              <div className="p-4 rounded-xl bg-accent/10 border border-accent/20 text-center col-span-2 sm:col-span-1">
-                <p className="text-xs text-muted-foreground mb-1">سعر الكرتون</p>
-                <p className="text-xl font-extrabold text-accent">
-                  ₪{Number(product.cartonPrice).toLocaleString('en-US')}
-                </p>
-              </div>
-            )}
+              ))}
           </div>
         </motion.div>
       </div>
 
       {/* Image viewer */}
-      {product.imageUrl && (
+      {effectiveImage && (
         <ImageViewer
-          src={product.imageUrl}
+          src={effectiveImage}
           alt={product.name}
           open={viewerOpen}
           onClose={() => setViewerOpen(false)}

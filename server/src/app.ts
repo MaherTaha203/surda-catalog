@@ -18,6 +18,7 @@ import healthRoutes from './routes/health.ts';
 import productsRoutes from './routes/products.ts';
 import uploadRoute from './routes/upload.ts';
 import mediaRoutes from './routes/media.ts';
+import settingsRoutes from './routes/settings.ts';
 import { UPLOADS_BASE, MAX_BYTES } from './services/storage.ts';
 
 export function buildApp(): FastifyInstance {
@@ -62,6 +63,7 @@ export function buildApp(): FastifyInstance {
   app.register(productsRoutes);
   app.register(uploadRoute);
   app.register(mediaRoutes);
+  app.register(settingsRoutes);
 
   // Serve the built static frontend from the same origin (production single
   // service). No-op when dist/ is absent (API-only dev). Registered last so the

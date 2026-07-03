@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PinPad } from '@/components/PinPad';
+import { BrandMark, BrandWordmark } from '@/components/BrandMark';
 import { getAdminPin, unlockPin, unlockAdmin, isPinUnlocked } from '@/lib/storage';
 import { useIsClient } from '@/hooks/useIsClient';
 
@@ -44,13 +45,11 @@ function PinGate() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          {/* Logo placeholder */}
-          <div className="w-24 h-24 mx-auto mb-6 rounded-2xl bg-primary/10 flex items-center justify-center">
-            <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-              <rect x="8" y="8" width="32" height="32" rx="8" stroke="hsl(var(--primary))" strokeWidth="2" />
-              <path d="M16 24L22 30L34 18" stroke="hsl(var(--primary))" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+          {/* SurdaCatalog placeholder branding (final artwork comes later) */}
+          <div className="w-24 h-24 mx-auto mb-4 flex items-center justify-center">
+            <BrandMark size={88} />
           </div>
+          <BrandWordmark className="block text-lg mb-4" />
 
           <h1 className="text-3xl font-bold text-foreground mb-2">شركة سردا</h1>
           <p className="text-sm text-muted-foreground mb-2">للتجارة والصناعة</p>

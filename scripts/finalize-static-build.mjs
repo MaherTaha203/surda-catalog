@@ -16,7 +16,7 @@
  * a clean temp dir avoids that entirely; here we only COPY into `dist/` (never delete),
  * so a pre-existing read-only `_redirects` is tolerated.
  */
-import { cpSync, existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const SRC = '.vite-out/client'
@@ -47,6 +47,27 @@ for (const entry of readdirSync(SRC)) {
 }
 
 rmSync('.vite-out', { recursive: true, force: true })
+
+// The app renders exclusively in Tajawal, but @blinkdotnew/ui's theme CSS also
+// @imports four Google Font families the catalog never uses (Inter, Nunito,
+// Space Grotesk, Plus Jakarta Sans). Strip those imports from the built CSS —
+// five network requests fewer on every first load in the field.
+const assetsDir = join(DEST, 'assets')
+if (existsSync(assetsDir)) {
+  let stripped = 0
+  for (const file of readdirSync(assetsDir)) {
+    if (!file.endsWith('.css')) continue
+    const path = join(assetsDir, file)
+    const css = readFileSync(path, 'utf8')
+    // Minified form: @import "https://fonts.googleapis.com/…";  (also handle url(...))
+    const cleaned = css.replace(
+      /@import (?:url\()?["']?https:\/\/fonts\.googleapis\.com\/[^"');]*["']?\)?;?/g,
+      (m) => (m.includes('Tajawal') ? m : ((stripped++), '')),
+    )
+    if (cleaned !== css) writeFileSync(path, cleaned)
+  }
+  console.log(`[finalize] ✓ stripped ${stripped} unused Google Font imports from built CSS`)
+}
 
 if (!existsSync(join(DEST, 'index.html'))) {
   console.error('[finalize] dist/index.html missing after flatten — build is not publishable')

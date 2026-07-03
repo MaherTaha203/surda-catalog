@@ -17,9 +17,3 @@ export interface Product {
   createdAt: string;
   updatedAt: string;
 }
-
-export interface AppSettings {
-  displayPin: string;
-  adminPin: string;
-  companyLogo: string;
-}

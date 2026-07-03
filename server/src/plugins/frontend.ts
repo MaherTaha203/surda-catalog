@@ -25,7 +25,7 @@ import { join, resolve } from 'node:path';
 import type { FastifyPluginAsync } from 'fastify';
 
 /** API path prefixes that must keep their JSON 404 (never fall back to the SPA). */
-const API_PREFIXES = ['/products', '/upload', '/uploads', '/health', '/admin/media'];
+const API_PREFIXES = ['/products', '/upload', '/uploads', '/health', '/admin/media', '/catalog-settings'];
 
 const FRONTEND_DIST =
   process.env.FRONTEND_DIST || resolve(process.cwd(), '..', 'dist');

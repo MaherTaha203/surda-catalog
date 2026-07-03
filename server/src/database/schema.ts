@@ -33,6 +33,18 @@ CREATE TABLE IF NOT EXISTS products (
 `;
 
 /**
+ * Catalog-wide settings owned by the administrator (key/value, JSON values).
+ * Currently: showPrices (global price availability) and
+ * defaultProductImageUrl (shown for products without their own image).
+ */
+export const SETTINGS_TABLE_DDL = `
+CREATE TABLE IF NOT EXISTS settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+`;
+
+/**
  * Default read order across the app is `sortOrder ASC` (every Blink `list` call
  * relies on it), so index that column — mirrors src/lib/offline-db.ts.
  */
