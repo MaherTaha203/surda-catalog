@@ -1,6 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
-import { createFileRoute, useParams, useNavigate, useRouter, useCanGoBack } from '@tanstack/react-router';
-import { motion } from 'framer-motion';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  createFileRoute,
+  useParams,
+  useNavigate,
+  useRouter,
+  useCanGoBack,
+  useLocation,
+} from '@tanstack/react-router';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, Package, PackageOpen, ZoomIn } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getProduct } from '@/api/products';
@@ -9,6 +16,7 @@ import { fetchProducts, PRODUCTS_KEY } from '@/hooks/useProducts';
 import { useCatalogSettings } from '@/hooks/useCatalogSettings';
 import { useDisplayPrefs, effectiveShowPrices, FONT_CLASSES } from '@/lib/display-prefs';
 import { ImageViewer } from '@/components/ImageViewer';
+import { resolveThumbUrl } from '@/api/client';
 import type { Product } from '@/types/product';
 
 async function fetchProduct(id: string): Promise<Product | null> {
@@ -29,6 +37,12 @@ export const Route = createFileRoute('/product/$id')({
   }),
   component: ProductDetailPage,
 });
+
+// Page-level product swipe must be deliberate — identical philosophy to the
+// image viewer, with the page's own thresholds from the spec.
+const SWIPE_MIN_DISTANCE = 80; // px
+const SWIPE_MIN_VELOCITY = 0.3; // px/ms
+const SWIPE_HORIZONTAL_DOMINANCE = 2; // |dx| ≥ |dy| * 2
 
 /** Sticky top bar with the back action — shared by the loaded and loading states. */
 function PageHeader({ onBack }: { onBack: () => void }) {
@@ -55,11 +69,17 @@ function ProductDetailPage() {
   const canGoBack = useCanGoBack();
   const queryClient = useQueryClient();
   const [viewerOpen, setViewerOpen] = useState(false);
+  // Which way the last product navigation went — drives the slide direction.
+  const [slideDir, setSlideDir] = useState<1 | -1>(1);
 
   const settings = useCatalogSettings();
   const { prefs } = useDisplayPrefs();
   const font = FONT_CLASSES[prefs.fontScale];
   const showPrices = effectiveShowPrices(settings, prefs);
+
+  // The exact list the user was browsing (category filter + search + admin
+  // order), carried in history state from the catalog card they tapped.
+  const catalogIds = useLocation({ select: (l) => l.state.catalogIds });
 
   // Coming from the catalog, history back restores its scroll position and
   // filters; on a deep link (no in-app history) fall back to the catalog.
@@ -82,8 +102,6 @@ function ProductDetailPage() {
     if (product?.name) document.title = `${product.name} — سردا`;
   }, [product?.name]);
 
-  // Adjacent products for in-viewer navigation: catalog order, visible, and
-  // image-bearing only (the viewer has nothing to show for imageless products).
   // Shares the catalog's query (same key + fetcher), so it's a cache hit when
   // arriving from the catalog and a single list fetch on deep links.
   const { data: allProducts } = useQuery({
@@ -91,22 +109,125 @@ function ProductDetailPage() {
     queryFn: fetchProducts,
     staleTime: 30_000,
   });
-  // With a default image configured, imageless products are viewable too.
   const defaultImage = settings.defaultProductImageUrl;
+
+  // Navigation pool: the filtered catalog view when we have it, otherwise all
+  // visible products in admin order (deep links).
+  const orderedProducts = useMemo(() => {
+    const visible = (allProducts ?? []).filter((p) => Number(p.isHidden) === 0);
+    if (catalogIds?.length) {
+      const byId = new Map(visible.map((p) => [p.id, p]));
+      const scoped = catalogIds.map((pid) => byId.get(pid)).filter((p): p is Product => Boolean(p));
+      // The current product must be in the pool for prev/next to make sense.
+      if (scoped.some((p) => p.id === id)) return scoped;
+    }
+    return visible;
+  }, [allProducts, catalogIds, id]);
+
+  const pageIndex = orderedProducts.findIndex((p) => p.id === id);
+  const pagePrev = pageIndex > 0 ? orderedProducts[pageIndex - 1] : undefined;
+  const pageNext = pageIndex >= 0 ? orderedProducts[pageIndex + 1] : undefined;
+
+  // The viewer can only show products with something to display.
   const viewerSiblings = useMemo(
-    () => (allProducts ?? []).filter((p) => Number(p.isHidden) === 0 && (p.imageUrl || defaultImage)),
-    [allProducts, defaultImage],
+    () => orderedProducts.filter((p) => p.imageUrl || defaultImage),
+    [orderedProducts, defaultImage],
   );
   const viewerIndex = viewerSiblings.findIndex((p) => p.id === id);
   const viewerPrev = viewerIndex > 0 ? viewerSiblings[viewerIndex - 1] : undefined;
   const viewerNext = viewerIndex >= 0 ? viewerSiblings[viewerIndex + 1] : undefined;
 
-  // Swap the product underneath the open viewer. `replace` keeps history clean:
-  // back always returns to where the user came from, not through every swipe.
-  const handleViewerNavigate = (direction: 1 | -1) => {
-    const target = direction === 1 ? viewerNext : viewerPrev;
-    if (target) navigate({ to: '/product/$id', params: { id: target.id }, replace: true });
+  // Swap the product in place. `replace` keeps history clean (back returns to
+  // the catalog, not through every swipe), `state: true` carries the filtered
+  // list forward, and `resetScroll: false` keeps the current scroll position.
+  const goToProduct = (target: Product | undefined, direction: 1 | -1) => {
+    if (!target) return;
+    setSlideDir(direction);
+    navigate({
+      to: '/product/$id',
+      params: { id: target.id },
+      replace: true,
+      resetScroll: false,
+      state: true,
+    });
   };
+
+  const handlePageNavigate = (direction: 1 | -1) =>
+    goToProduct(direction === 1 ? pageNext : pagePrev, direction);
+  const handleViewerNavigate = (direction: 1 | -1) =>
+    goToProduct(direction === 1 ? viewerNext : viewerPrev, direction);
+
+  // Desktop keyboard: arrows switch products (RTL: left = next). While the
+  // viewer is open it owns the arrow keys — don't double-navigate.
+  const keyState = useRef({ viewerOpen, handlePageNavigate });
+  keyState.current = { viewerOpen, handlePageNavigate };
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (keyState.current.viewerOpen) return;
+      if (e.key === 'ArrowLeft') keyState.current.handlePageNavigate(1);
+      else if (e.key === 'ArrowRight') keyState.current.handlePageNavigate(-1);
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, []);
+
+  // Deliberate swipe on the page body (mobile/tablet). One finger only —
+  // a second touch (pinch/browser zoom) poisons the gesture, and while the
+  // page is pinch-zoomed navigation is disabled entirely.
+  const swipeStart = useRef<{ x: number; y: number; t: number } | null>(null);
+  const pinchedDuringGesture = useRef(false);
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length > 1) {
+      swipeStart.current = null;
+      pinchedDuringGesture.current = true;
+      return;
+    }
+    pinchedDuringGesture.current = false;
+    swipeStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: performance.now() };
+  };
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length > 1) {
+      swipeStart.current = null;
+      pinchedDuringGesture.current = true;
+    }
+  };
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const start = swipeStart.current;
+    swipeStart.current = null;
+    if (!start || pinchedDuringGesture.current || viewerOpen) return;
+    if (e.touches.length > 0) return;
+    if ((window.visualViewport?.scale ?? 1) > 1) return; // page is zoomed → pan only
+    const touch = e.changedTouches[0];
+    if (!touch) return;
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    const elapsed = Math.max(1, performance.now() - start.t);
+    if (Math.abs(dx) < SWIPE_MIN_DISTANCE) return;
+    if (Math.abs(dx) / elapsed < SWIPE_MIN_VELOCITY) return;
+    if (Math.abs(dx) < Math.abs(dy) * SWIPE_HORIZONTAL_DOMINANCE) return;
+    if (dx < 0) handlePageNavigate(1); // swipe left → next
+    else handlePageNavigate(-1); // swipe right → previous
+  };
+
+  // Preload the neighbors so navigation feels instant: warm the product query
+  // and decode the images ahead of time.
+  useEffect(() => {
+    for (const neighbor of [pagePrev, pageNext]) {
+      if (!neighbor) continue;
+      queryClient.prefetchQuery({
+        queryKey: ['product', neighbor.id],
+        queryFn: () => fetchProduct(neighbor.id),
+        staleTime: 30_000,
+      });
+      const src = neighbor.imageUrl || defaultImage;
+      if (src) {
+        const img = new Image();
+        img.src = src;
+        const thumb = resolveThumbUrl(src);
+        if (thumb && thumb !== src) new Image().src = thumb;
+      }
+    }
+  }, [pagePrev, pageNext, defaultImage, queryClient]);
 
   if (isLoading) {
     return (
@@ -155,128 +276,141 @@ function ProductDetailPage() {
     <div className="min-h-dvh bg-background" dir="rtl">
       <PageHeader onBack={goBack} />
 
-      <div className="max-w-3xl mx-auto px-4 py-4">
-        {/* Product image */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-        >
-          <button
-            type="button"
-            disabled={!effectiveImage}
-            onClick={() => setViewerOpen(true)}
-            aria-label="عرض الصورة بالحجم الكامل"
-            className="group relative block w-full aspect-[4/3] rounded-2xl bg-muted overflow-hidden shadow-md disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+      {/* overflow-x-hidden clips the horizontal slide — no page-level scrollbar */}
+      <div
+        className="max-w-3xl mx-auto px-4 py-4 overflow-x-hidden"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        {/* The whole product view slides out/in when swiping between products.
+            initial={false}: arriving from the catalog renders without a slide. */}
+        <AnimatePresence mode="popLayout" initial={false} custom={slideDir}>
+          <motion.div
+            key={product.id}
+            custom={slideDir}
+            variants={{
+              enter: (d: 1 | -1) => ({ x: d * 90, opacity: 0 }),
+              center: { x: 0, opacity: 1 },
+              exit: (d: 1 | -1) => ({ x: d * -90, opacity: 0 }),
+            }}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.25, ease: 'easeOut' }}
           >
-            {effectiveImage ? (
-              <img
-                src={effectiveImage}
-                alt={product.name}
-                decoding="async"
-                fetchPriority="high"
-                className="w-full h-full object-contain"
-              />
-            ) : (
-              <div className="flex items-center justify-center w-full h-full text-muted-foreground">
-                <Package size={64} strokeWidth={1} aria-hidden />
-              </div>
-            )}
-            {effectiveImage && (
-              <>
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity bg-foreground/10">
-                  <span className="px-4 py-2 rounded-xl bg-background/90 text-sm font-medium shadow-sm backdrop-blur-sm">
-                    اضغط للتكبير
-                  </span>
-                </div>
-                {/* Always-visible affordance — the hover hint never shows on touch screens */}
-                <span className="absolute bottom-2 left-2 w-8 h-8 flex items-center justify-center rounded-full bg-background/90 text-foreground shadow-sm backdrop-blur-sm">
-                  <ZoomIn size={15} aria-hidden />
-                </span>
-              </>
-            )}
-            <span className={`absolute top-2 right-2 px-3 py-1 rounded-full font-medium bg-background/90 text-foreground shadow-sm ${font.detailBadge}`}>
-              {product.category}
-            </span>
-          </button>
-        </motion.div>
-
-        {/* Product info */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.1 }}
-          className="mt-6 space-y-4"
-        >
-          <h1 className={`font-bold text-foreground ${font.detailName}`}>{product.name}</h1>
-
-          {product.description && (
-            <p className={`text-muted-foreground leading-relaxed whitespace-pre-line ${font.detailDesc}`}>
-              {product.description}
-            </p>
-          )}
-
-          {/* Specs cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {product.size && (
-              <div className="p-4 rounded-xl bg-card border border-border text-center">
-                <p className="text-xs text-muted-foreground mb-1">الحجم</p>
-                <p className="text-base font-bold text-foreground">{product.size}</p>
-              </div>
-            )}
-            <div className="p-4 rounded-xl bg-card border border-border text-center">
-              <p className="text-xs text-muted-foreground mb-1">الكمية في الكرتون</p>
-              <p className="text-base font-bold text-foreground flex items-center justify-center gap-1.5">
-                <span>{Number(product.cartonQuantity).toLocaleString('en-US')}</span>
-                <span className="text-muted-foreground" aria-hidden>×</span>
-                <PackageOpen size={18} className="text-muted-foreground" aria-hidden />
-              </p>
-            </div>
-            {showPrices &&
-              (hasOffer ? (
-                /* Price card — same footprint, split into two equal halves: carton (left) / offer (right) */
-                <div className="rounded-xl bg-accent/10 border border-accent/20 text-center col-span-2 sm:col-span-1 grid grid-cols-2">
-                  <div className="p-4 order-1 border-r border-accent/20">
-                    <p className="text-xs text-muted-foreground mb-1">سعر الكرتون</p>
-                    <p className={`font-extrabold text-accent ${font.detailPrice}`}>
-                      ₪{Number(product.cartonPrice).toLocaleString('en-US')}
-                    </p>
-                  </div>
-                  <div className="p-4">
-                    <p className="text-xs text-muted-foreground mb-1">سعر العرض</p>
-                    <p className={`font-extrabold text-accent ${font.detailPrice}`}>
-                      ₪{Number(product.offerPrice).toLocaleString('en-US')}
-                    </p>
-                    {(product.offerQuantity > 0 || product.bonusQuantity > 0) && (
-                      <p
-                        dir="ltr"
-                        className={`font-medium text-muted-foreground leading-tight mt-0.5 flex items-center justify-center gap-0.5 ${font.detailOffer}`}
-                      >
-                        <span>{Number(product.offerQuantity).toLocaleString('en-US')}</span>
-                        <span aria-hidden>×</span>
-                        <PackageOpen size={11} className="shrink-0" aria-hidden />
-                        {product.bonusQuantity > 0 && (
-                          <>
-                            <span className="mx-0.5" aria-hidden>+</span>
-                            <span>{Number(product.bonusQuantity).toLocaleString('en-US')}</span>
-                            <PackageOpen size={11} className="shrink-0 text-accent" aria-hidden />
-                          </>
-                        )}
-                      </p>
-                    )}
-                  </div>
-                </div>
+            {/* Product image */}
+            <button
+              type="button"
+              disabled={!effectiveImage}
+              onClick={() => setViewerOpen(true)}
+              aria-label="عرض الصورة بالحجم الكامل"
+              className="group relative block w-full aspect-[4/3] rounded-2xl bg-muted overflow-hidden shadow-md disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+            >
+              {effectiveImage ? (
+                <img
+                  src={effectiveImage}
+                  alt={product.name}
+                  decoding="async"
+                  fetchPriority="high"
+                  className="w-full h-full object-contain"
+                />
               ) : (
-                /* No offer → one full-width carton-price cell instead of a split card with a dash */
-                <div className="p-4 rounded-xl bg-accent/10 border border-accent/20 text-center col-span-2 sm:col-span-1">
-                  <p className="text-xs text-muted-foreground mb-1">سعر الكرتون</p>
-                  <p className={`font-extrabold text-accent ${font.detailPrice}`}>
-                    ₪{Number(product.cartonPrice).toLocaleString('en-US')}
+                <div className="flex items-center justify-center w-full h-full text-muted-foreground">
+                  <Package size={64} strokeWidth={1} aria-hidden />
+                </div>
+              )}
+              {effectiveImage && (
+                <>
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity bg-foreground/10">
+                    <span className="px-4 py-2 rounded-xl bg-background/90 text-sm font-medium shadow-sm backdrop-blur-sm">
+                      اضغط للتكبير
+                    </span>
+                  </div>
+                  {/* Always-visible affordance — the hover hint never shows on touch screens */}
+                  <span className="absolute bottom-2 left-2 w-8 h-8 flex items-center justify-center rounded-full bg-background/90 text-foreground shadow-sm backdrop-blur-sm">
+                    <ZoomIn size={15} aria-hidden />
+                  </span>
+                </>
+              )}
+              <span className={`absolute top-2 right-2 px-3 py-1 rounded-full font-medium bg-background/90 text-foreground shadow-sm ${font.detailBadge}`}>
+                {product.category}
+              </span>
+            </button>
+
+            {/* Product info */}
+            <div className="mt-6 space-y-4">
+              <h1 className={`font-bold text-foreground ${font.detailName}`}>{product.name}</h1>
+
+              {product.description && (
+                <p className={`text-muted-foreground leading-relaxed whitespace-pre-line ${font.detailDesc}`}>
+                  {product.description}
+                </p>
+              )}
+
+              {/* Specs cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {product.size && (
+                  <div className="p-4 rounded-xl bg-card border border-border text-center">
+                    <p className="text-xs text-muted-foreground mb-1">الحجم</p>
+                    <p className="text-base font-bold text-foreground">{product.size}</p>
+                  </div>
+                )}
+                <div className="p-4 rounded-xl bg-card border border-border text-center">
+                  <p className="text-xs text-muted-foreground mb-1">الكمية في الكرتون</p>
+                  <p className="text-base font-bold text-foreground flex items-center justify-center gap-1.5">
+                    <span>{Number(product.cartonQuantity).toLocaleString('en-US')}</span>
+                    <span className="text-muted-foreground" aria-hidden>×</span>
+                    <PackageOpen size={18} className="text-muted-foreground" aria-hidden />
                   </p>
                 </div>
-              ))}
-          </div>
-        </motion.div>
+                {showPrices &&
+                  (hasOffer ? (
+                    /* Price card — same footprint, split into two equal halves: carton (left) / offer (right) */
+                    <div className="rounded-xl bg-accent/10 border border-accent/20 text-center col-span-2 sm:col-span-1 grid grid-cols-2">
+                      <div className="p-4 order-1 border-r border-accent/20">
+                        <p className="text-xs text-muted-foreground mb-1">سعر الكرتون</p>
+                        <p className={`font-extrabold text-accent ${font.detailPrice}`}>
+                          ₪{Number(product.cartonPrice).toLocaleString('en-US')}
+                        </p>
+                      </div>
+                      <div className="p-4">
+                        <p className="text-xs text-muted-foreground mb-1">سعر العرض</p>
+                        <p className={`font-extrabold text-accent ${font.detailPrice}`}>
+                          ₪{Number(product.offerPrice).toLocaleString('en-US')}
+                        </p>
+                        {(product.offerQuantity > 0 || product.bonusQuantity > 0) && (
+                          <p
+                            dir="ltr"
+                            className={`font-medium text-muted-foreground leading-tight mt-0.5 flex items-center justify-center gap-0.5 ${font.detailOffer}`}
+                          >
+                            <span>{Number(product.offerQuantity).toLocaleString('en-US')}</span>
+                            <span aria-hidden>×</span>
+                            <PackageOpen size={11} className="shrink-0" aria-hidden />
+                            {product.bonusQuantity > 0 && (
+                              <>
+                                <span className="mx-0.5" aria-hidden>+</span>
+                                <span>{Number(product.bonusQuantity).toLocaleString('en-US')}</span>
+                                <PackageOpen size={11} className="shrink-0 text-accent" aria-hidden />
+                              </>
+                            )}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    /* No offer → one full-width carton-price cell instead of a split card with a dash */
+                    <div className="p-4 rounded-xl bg-accent/10 border border-accent/20 text-center col-span-2 sm:col-span-1">
+                      <p className="text-xs text-muted-foreground mb-1">سعر الكرتون</p>
+                      <p className={`font-extrabold text-accent ${font.detailPrice}`}>
+                        ₪{Number(product.cartonPrice).toLocaleString('en-US')}
+                      </p>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </motion.div>
+        </AnimatePresence>
       </div>
 
       {/* Image viewer */}

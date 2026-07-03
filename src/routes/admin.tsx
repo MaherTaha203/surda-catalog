@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { createFileRoute, useNavigate, Link } from '@tanstack/react-router';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowRight, Plus, Package, Search, Settings, X } from 'lucide-react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { toast } from '@blinkdotnew/ui';
@@ -14,6 +14,7 @@ import { isAdminUnlocked, isPinUnlocked } from '@/lib/storage';
 import { useIsClient } from '@/hooks/useIsClient';
 import type { Product } from '@/types/product';
 import { PRODUCTS_KEY } from '@/hooks/useProducts';
+import { useDragReorder } from '@/hooks/useDragReorder';
 import { AdminProductForm } from '@/components/AdminProductForm';
 import { AdminProductRow } from '@/components/AdminProductRow';
 
@@ -79,7 +80,11 @@ function AdminPage() {
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
       refreshCatalog();
     },
-    onError: (e: Error) => toast.error(e.message || 'فشل تغيير الترتيب'),
+    onError: (e: Error) => {
+      toast.error(e.message || 'فشل تغيير الترتيب');
+      // Roll the optimistic order back to the server's truth.
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+    },
   });
 
   const handleSaved = () => {
@@ -107,18 +112,32 @@ function AdminPage() {
   }, [products, query]);
   const isFiltering = query.length > 0;
 
+  // Drag & drop reorder — full unfiltered list only; saved immediately on drop.
+  const dragDisabled = isFiltering || reorderMutation.isPending || deleteMutation.isPending;
+  const { session: dragSession, onMouseDown: onRowMouseDown, onTouchStart: onRowTouchStart } = useDragReorder({
+    items: products,
+    disabled: dragDisabled,
+    onCommit: (order) => {
+      // Optimistic: paint the new order instantly, then persist atomically.
+      queryClient.setQueryData(['admin-products'], order);
+      reorderMutation.mutate(order.map((p, i) => ({ id: p.id, sortOrder: i })));
+    },
+  });
+  const displayProducts = dragSession?.order ?? filteredProducts;
+
   if (!unlocked) return null;
 
   const header = (
     <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-md border-b border-border">
-      <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link to="/catalog" className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-            <ArrowRight size={18} aria-hidden /> الكتالوج
+      <div className="max-w-4xl mx-auto px-3 sm:px-4 py-3 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+          <Link to="/catalog" aria-label="الكتالوج" className="flex items-center gap-2 px-2 sm:px-3 py-1.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+            <ArrowRight size={18} aria-hidden />
+            <span className="hidden sm:inline">الكتالوج</span>
           </Link>
-          <h1 className="text-lg font-bold text-foreground">لوحة التحكم</h1>
+          <h1 className="text-base sm:text-lg font-bold text-foreground whitespace-nowrap">لوحة التحكم</h1>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0">
           <Link
             to="/settings"
             aria-label="إعدادات الكتالوج"
@@ -126,7 +145,7 @@ function AdminPage() {
           >
             <Settings size={18} />
           </Link>
-          <button type="button" onClick={startAdd} className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity">
+          <button type="button" onClick={startAdd} className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium whitespace-nowrap hover:opacity-90 transition-opacity">
             <Plus size={16} aria-hidden /> إضافة منتج
           </button>
         </div>
@@ -202,37 +221,27 @@ function AdminPage() {
               </div>
             ) : (
               <div className="space-y-2">
-                {filteredProducts.map((product) => {
-                  const i = products.indexOf(product);
+                {displayProducts.map((product) => {
+                  const dragging = dragSession?.id === product.id;
                   return (
-                    <AdminProductRow
+                    <motion.div
                       key={product.id}
-                      product={product}
-                      index={filteredProducts.indexOf(product)}
-                      isFirst={i === 0}
-                      isLast={i === products.length - 1}
-                      reorderDisabled={isFiltering || reorderMutation.isPending}
-                      deleteDisabled={deleteMutation.isPending}
-                      onEdit={startEdit}
-                      onDelete={(id) => deleteMutation.mutate(id)}
-                      onToggleHide={(id, cur) => toggleMutation.mutate({ id, isHidden: cur ? 0 : 1 })}
-                      onMoveUp={() => {
-                        if (i > 0) {
-                          reorderMutation.mutate([
-                            { id: product.id, sortOrder: i - 1 },
-                            { id: products[i - 1].id, sortOrder: i },
-                          ]);
-                        }
-                      }}
-                      onMoveDown={() => {
-                        if (i < products.length - 1) {
-                          reorderMutation.mutate([
-                            { id: product.id, sortOrder: i + 1 },
-                            { id: products[i + 1].id, sortOrder: i },
-                          ]);
-                        }
-                      }}
-                    />
+                      layout={dragSession ? !dragging : false}
+                      transition={{ duration: 0.18 }}
+                      style={dragging ? { y: dragSession.dy, zIndex: 30, position: 'relative' } : undefined}
+                      onMouseDown={(e) => onRowMouseDown(e, product.id)}
+                      onTouchStart={(e) => onRowTouchStart(e, product.id)}
+                    >
+                      <AdminProductRow
+                        product={product}
+                        dragDisabled={dragDisabled}
+                        dragging={dragging}
+                        deleteDisabled={deleteMutation.isPending}
+                        onEdit={startEdit}
+                        onDelete={(id) => deleteMutation.mutate(id)}
+                        onToggleHide={(id, cur) => toggleMutation.mutate({ id, isHidden: cur ? 0 : 1 })}
+                      />
+                    </motion.div>
                   );
                 })}
               </div>

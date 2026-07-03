@@ -12,9 +12,14 @@ interface ProductCardProps {
   showPrice: boolean;
   /** Admin-configured image for products without their own ('' = none). */
   defaultImageUrl: string;
+  /**
+   * Ordered ids of the products currently on screen (filters + search applied).
+   * Carried in history state so the detail page swipes within this exact list.
+   */
+  catalogIds: string[];
 }
 
-export function ProductCard({ product, index, showPrice, defaultImageUrl }: ProductCardProps) {
+export function ProductCard({ product, index, showPrice, defaultImageUrl, catalogIds }: ProductCardProps) {
   const { prefs } = useDisplayPrefs();
   const font = FONT_CLASSES[prefs.fontScale];
 
@@ -34,6 +39,7 @@ export function ProductCard({ product, index, showPrice, defaultImageUrl }: Prod
       <Link
         to="/product/$id"
         params={{ id: product.id }}
+        state={{ catalogIds }}
         className="group flex flex-col h-full rounded-2xl bg-card border border-border overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 active:scale-[0.98]"
         dir="rtl"
       >
