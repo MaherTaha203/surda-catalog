@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { createFileRoute, useNavigate, Link } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
 import { Search, LayoutDashboard, LogOut, Package, Droplets, Brush, SlidersHorizontal } from 'lucide-react';
@@ -53,6 +53,31 @@ function CatalogPage() {
     lockPin();
     navigate({ to: '/' });
   };
+
+  // Scroll restoration: the router restores before this client-gated page has
+  // any height, so the position clamps to the top. Track the position per
+  // history entry ourselves and re-apply it once the grid has rendered.
+  const restoredScroll = useRef(false);
+  useEffect(() => {
+    const entryKey = () =>
+      (window.history.state as { __TSR_key?: string } | null)?.__TSR_key ?? '';
+    const onScroll = () => {
+      const key = entryKey();
+      if (key) sessionStorage.setItem(`sarda_catalog_scroll_${key}`, String(window.scrollY));
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+  useEffect(() => {
+    // Wait for the grid to actually be in the DOM: isClient gates rendering,
+    // so an earlier run would scroll an empty (zero-height) page.
+    if (!isClient || restoredScroll.current || isLoading || products.length === 0) return;
+    restoredScroll.current = true;
+    const key = (window.history.state as { __TSR_key?: string } | null)?.__TSR_key;
+    if (!key) return;
+    const saved = Number(sessionStorage.getItem(`sarda_catalog_scroll_${key}`) || 0);
+    if (saved > 0) window.scrollTo({ top: saved });
+  }, [isClient, isLoading, products.length]);
 
   const categories: { id: ProductCategory | 'all'; label: string; icon: React.ReactNode; count: number }[] = [
     { id: 'all', label: 'الكل', icon: <Package size={16} />, count: counts.all },
