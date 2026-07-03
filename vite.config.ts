@@ -45,7 +45,7 @@ export default defineConfig({
     // API. This keeps requests same-origin in the browser (no wrong-host /
     // mixed-content failures). Override the target with VITE_DEV_API_PROXY.
     proxy: Object.fromEntries(
-      ['/products', '/upload', '/uploads', '/health'].map((p) => [
+      ['/products', '/upload', '/uploads', '/health', '/catalog-settings'].map((p) => [
         p,
         {
           target: process.env.VITE_DEV_API_PROXY || 'http://localhost:4000',

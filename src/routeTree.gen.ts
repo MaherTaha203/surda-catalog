@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as PreferencesRouteImport } from './routes/preferences'
 import { Route as CatalogRouteImport } from './routes/catalog'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
@@ -18,6 +19,11 @@ import { Route as ProductIdRouteImport } from './routes/product.$id'
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PreferencesRoute = PreferencesRouteImport.update({
+  id: '/preferences',
+  path: '/preferences',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CatalogRoute = CatalogRouteImport.update({
@@ -45,6 +51,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/catalog': typeof CatalogRoute
+  '/preferences': typeof PreferencesRoute
   '/settings': typeof SettingsRoute
   '/product/$id': typeof ProductIdRoute
 }
@@ -52,6 +59,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/catalog': typeof CatalogRoute
+  '/preferences': typeof PreferencesRoute
   '/settings': typeof SettingsRoute
   '/product/$id': typeof ProductIdRoute
 }
@@ -60,21 +68,42 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/catalog': typeof CatalogRoute
+  '/preferences': typeof PreferencesRoute
   '/settings': typeof SettingsRoute
   '/product/$id': typeof ProductIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin' | '/catalog' | '/settings' | '/product/$id'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/catalog'
+    | '/preferences'
+    | '/settings'
+    | '/product/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/catalog' | '/settings' | '/product/$id'
-  id: '__root__' | '/' | '/admin' | '/catalog' | '/settings' | '/product/$id'
+  to:
+    | '/'
+    | '/admin'
+    | '/catalog'
+    | '/preferences'
+    | '/settings'
+    | '/product/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/catalog'
+    | '/preferences'
+    | '/settings'
+    | '/product/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   CatalogRoute: typeof CatalogRoute
+  PreferencesRoute: typeof PreferencesRoute
   SettingsRoute: typeof SettingsRoute
   ProductIdRoute: typeof ProductIdRoute
 }
@@ -86,6 +115,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/preferences': {
+      id: '/preferences'
+      path: '/preferences'
+      fullPath: '/preferences'
+      preLoaderRoute: typeof PreferencesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/catalog': {
@@ -123,6 +159,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   CatalogRoute: CatalogRoute,
+  PreferencesRoute: PreferencesRoute,
   SettingsRoute: SettingsRoute,
   ProductIdRoute: ProductIdRoute,
 }

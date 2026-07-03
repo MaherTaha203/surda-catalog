@@ -20,6 +20,7 @@
 import { initDatabase } from '../src/database/index.ts';
 import { ProductsService } from '../src/services/products.ts';
 import { MediaService } from '../src/services/media.ts';
+import { SettingsService } from '../src/services/settings.ts';
 
 const args = process.argv.slice(2);
 const cmd = args[0] ?? 'help';
@@ -43,7 +44,10 @@ function fmtBytes(n: number): string {
 
 async function main(): Promise<number> {
   const { db } = initDatabase();
-  const media = new MediaService(new ProductsService(db));
+  const settings = new SettingsService(db);
+  const media = new MediaService(new ProductsService(db), undefined, () => [
+    settings.getAll().defaultProductImageUrl,
+  ]);
 
   switch (cmd) {
     case 'stats': {

@@ -17,9 +17,13 @@
 import type { FastifyPluginAsync, FastifyReply } from 'fastify';
 import { MediaService } from '../services/media.ts';
 import { ProductsService } from '../services/products.ts';
+import { SettingsService } from '../services/settings.ts';
 
 const mediaRoutes: FastifyPluginAsync = async (fastify) => {
-  const media = new MediaService(new ProductsService(fastify.db));
+  const settings = new SettingsService(fastify.db);
+  const media = new MediaService(new ProductsService(fastify.db), undefined, () => [
+    settings.getAll().defaultProductImageUrl,
+  ]);
 
   const run = async <T>(label: string, reply: FastifyReply, fn: () => Promise<T>): Promise<T | FastifyReply> => {
     try {

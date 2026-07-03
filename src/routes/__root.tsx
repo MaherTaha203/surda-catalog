@@ -7,6 +7,7 @@ import {
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BlinkUIProvider, Toaster } from '@blinkdotnew/ui'
 import type { ReactNode } from 'react'
+import { DisplayPrefsProvider } from '../lib/display-prefs'
 import indexCss from '../index.css?url'
 
 const queryClient = new QueryClient()
@@ -47,6 +48,7 @@ export const Route = createRootRoute({
     ],
     links: [
       { rel: 'stylesheet', href: indexCss },
+      { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
       { rel: 'manifest', href: '/manifest.json' },
       { rel: 'apple-touch-icon', href: '/icons/icon-192.png' },
     ],
@@ -75,6 +77,7 @@ function RootDocument({ children }: { children: ReactNode }) {
       <body>
         <QueryClientProvider client={queryClient}>
           <BlinkUIProvider theme="minimal" darkMode="light">
+            <DisplayPrefsProvider>
             <Toaster />
             {/*
               Full-bleed by default — NO app chrome. Child routes render directly.
@@ -83,6 +86,7 @@ function RootDocument({ children }: { children: ReactNode }) {
               sites, content, and games stay full-bleed.
             */}
             {children}
+            </DisplayPrefsProvider>
           </BlinkUIProvider>
         </QueryClientProvider>
         <Scripts />

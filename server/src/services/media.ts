@@ -132,6 +132,11 @@ export class MediaService {
   constructor(
     private readonly products: ProductsService,
     storage?: StorageService,
+    /**
+     * Extra referenced URLs beyond product rows — e.g. the catalog's default
+     * product image (settings table) — so GC never treats them as orphans.
+     */
+    private readonly extraReferencedUrls: () => string[] = () => [],
   ) {
     this.storage = storage ?? new StorageService();
   }
@@ -139,8 +144,11 @@ export class MediaService {
   /** Basenames of full images that products currently reference (local uploads only). */
   private referencedNames(): Set<string> {
     const names = new Set<string>();
-    for (const p of this.products.list()) {
-      const url = p.imageUrl;
+    const urls = [
+      ...this.products.list().map((p) => p.imageUrl),
+      ...this.extraReferencedUrls(),
+    ];
+    for (const url of urls) {
       if (typeof url === 'string' && url.startsWith(`${PUBLIC_PREFIX}/`)) {
         names.add(basename(url));
       }

@@ -1,10 +1,14 @@
+import { useMemo } from 'react';
 import { createFileRoute, useNavigate, Link } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
-import { Search, LayoutDashboard, LogOut, Package, Droplets, Brush } from 'lucide-react';
+import { Search, LayoutDashboard, LogOut, Package, Droplets, Brush, SlidersHorizontal } from 'lucide-react';
 import { useProducts } from '@/hooks/useProducts';
+import { useCatalogSettings } from '@/hooks/useCatalogSettings';
 import { ProductCard } from '@/components/ProductCard';
+import { BrandMark } from '@/components/BrandMark';
 import { getCompanyLogo, lockPin, isAdminUnlocked } from '@/lib/storage';
 import { useIsClient } from '@/hooks/useIsClient';
+import { useDisplayPrefs, DENSITY_GRID, FONT_CLASSES } from '@/lib/display-prefs';
 import type { ProductCategory } from '@/types/product';
 
 export const Route = createFileRoute('/catalog')({
@@ -24,12 +28,26 @@ function CatalogPage() {
     selectedCategory,
     setSelectedCategory,
     counts,
-    refresh,
   } = useProducts();
 
   const companyLogo = getCompanyLogo();
   const adminMode = isAdminUnlocked();
   const isClient = useIsClient();
+
+  const settings = useCatalogSettings();
+  const { prefs } = useDisplayPrefs();
+  const font = FONT_CLASSES[prefs.fontScale];
+  // Prices show only when the admin keeps them globally available AND this
+  // device hasn't chosen to hide them.
+  const showPrices = settings.showPrices && prefs.showPrices;
+
+  // View-only ordering — a per-device lens over the admin-owned sortOrder.
+  const orderedProducts = useMemo(() => {
+    if (prefs.viewOrder === 'original') return products;
+    const sorted = [...products].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+    if (prefs.viewOrder === 'name-desc') sorted.reverse();
+    return sorted;
+  }, [products, prefs.viewOrder]);
 
   const handleLogout = () => {
     lockPin();
@@ -55,12 +73,7 @@ function CatalogPage() {
               {companyLogo ? (
                 <img src={companyLogo} alt="شعار سردا" className="h-10 w-10 rounded-xl object-cover" />
               ) : (
-                <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                  <svg width="24" height="24" viewBox="0 0 48 48" fill="none">
-                    <rect x="8" y="8" width="32" height="32" rx="8" stroke="hsl(var(--primary))" strokeWidth="2" />
-                    <path d="M16 24L22 30L34 18" stroke="hsl(var(--primary))" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </div>
+                <BrandMark size={40} />
               )}
               <div>
                 <h1 className="text-sm font-bold text-foreground leading-tight">شركة سردا</h1>
@@ -79,6 +92,13 @@ function CatalogPage() {
                   <span className="hidden sm:inline">لوحة التحكم</span>
                 </Link>
               )}
+              <Link
+                to="/preferences"
+                aria-label="خيارات العرض"
+                className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                <SlidersHorizontal size={18} />
+              </Link>
               <button
                 type="button"
                 onClick={handleLogout}
@@ -117,7 +137,7 @@ function CatalogPage() {
               type="button"
               whileTap={{ scale: 0.96 }}
               onClick={() => setSelectedCategory(cat.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-200 ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium whitespace-nowrap transition-all duration-200 ${font.categoryChip} ${
                 selectedCategory === cat.id
                   ? 'bg-primary text-primary-foreground shadow-sm'
                   : 'bg-card border border-border text-foreground hover:bg-muted/50'
@@ -138,7 +158,7 @@ function CatalogPage() {
       {/* Product grid */}
       <main className="max-w-7xl mx-auto px-4 pb-8">
         {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className={DENSITY_GRID[prefs.density]}>
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="rounded-2xl bg-card border border-border overflow-hidden animate-pulse">
                 <div className="aspect-[4/3] bg-muted" />
@@ -173,9 +193,15 @@ function CatalogPage() {
             )}
           </motion.div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {products.map((product, i) => (
-              <ProductCard key={product.id} product={product} index={i} />
+          <div className={DENSITY_GRID[prefs.density]}>
+            {orderedProducts.map((product, i) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                index={i}
+                showPrice={showPrices}
+                defaultImageUrl={settings.defaultProductImageUrl}
+              />
             ))}
           </div>
         )}
