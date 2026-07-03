@@ -16,6 +16,8 @@
     "server": "npm --prefix server install --no-audit --no-fund && npm --prefix server start"
   },
   "devDependencies": {
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
     "typescript": "~6.0.2",
     "vite": "8.0.14"
   },

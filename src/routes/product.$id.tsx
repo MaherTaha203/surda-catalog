@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createFileRoute, useParams, useNavigate, useRouter, useCanGoBack } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
 import { ArrowRight, Package, PackageOpen, ZoomIn } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getProduct } from '@/api/products';
 import { getCachedProducts } from '@/lib/offline-db';
+import { fetchProducts, PRODUCTS_KEY } from '@/hooks/useProducts';
 import { ImageViewer } from '@/components/ImageViewer';
 import type { Product } from '@/types/product';
 
@@ -73,6 +74,30 @@ function ProductDetailPage() {
   useEffect(() => {
     if (product?.name) document.title = `${product.name} — سردا`;
   }, [product?.name]);
+
+  // Adjacent products for in-viewer navigation: catalog order, visible, and
+  // image-bearing only (the viewer has nothing to show for imageless products).
+  // Shares the catalog's query (same key + fetcher), so it's a cache hit when
+  // arriving from the catalog and a single list fetch on deep links.
+  const { data: allProducts } = useQuery({
+    queryKey: PRODUCTS_KEY,
+    queryFn: fetchProducts,
+    staleTime: 30_000,
+  });
+  const viewerSiblings = useMemo(
+    () => (allProducts ?? []).filter((p) => Number(p.isHidden) === 0 && p.imageUrl),
+    [allProducts],
+  );
+  const viewerIndex = viewerSiblings.findIndex((p) => p.id === id);
+  const viewerPrev = viewerIndex > 0 ? viewerSiblings[viewerIndex - 1] : undefined;
+  const viewerNext = viewerIndex >= 0 ? viewerSiblings[viewerIndex + 1] : undefined;
+
+  // Swap the product underneath the open viewer. `replace` keeps history clean:
+  // back always returns to where the user came from, not through every swipe.
+  const handleViewerNavigate = (direction: 1 | -1) => {
+    const target = direction === 1 ? viewerNext : viewerPrev;
+    if (target) navigate({ to: '/product/$id', params: { id: target.id }, replace: true });
+  };
 
   if (isLoading) {
     return (
@@ -250,6 +275,9 @@ function ProductDetailPage() {
           alt={product.name}
           open={viewerOpen}
           onClose={() => setViewerOpen(false)}
+          onNavigate={handleViewerNavigate}
+          hasNext={Boolean(viewerNext)}
+          hasPrev={Boolean(viewerPrev)}
         />
       )}
     </div>

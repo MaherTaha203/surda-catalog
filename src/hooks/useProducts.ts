@@ -4,12 +4,14 @@ import type { Product, ProductCategory } from '@/types/product';
 import { saveProductsToCache, getCachedProducts } from '@/lib/offline-db';
 import { listProducts } from '@/api/products';
 
-const PRODUCTS_KEY = ['products'];
+export const PRODUCTS_KEY = ['products'];
 
 // Data source: the Fastify API (was Blink), via the shared products API client.
 // The API returns the same Product[] (sortOrder asc), so the rest of this hook —
 // search, categories, counts, offline cache — is unchanged.
-async function fetchProducts(): Promise<Product[]> {
+// Exported so the product detail page can share the same query (key + fetcher)
+// when computing previous/next products for the image viewer.
+export async function fetchProducts(): Promise<Product[]> {
   try {
     const products = await listProducts();
     // Cache for offline

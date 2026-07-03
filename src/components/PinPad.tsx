@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
@@ -37,10 +37,24 @@ export function PinPad({ title, subtitle, correctPin, onSuccess, onBack }: PinPa
     [pin, correctPin, onSuccess]
   );
 
-  const handleClear = () => {
-    setPin('');
+  // Backspace icon = remove the last digit (its previous clear-all behavior
+  // contradicted the icon and standard PIN-pad expectations).
+  const handleBackspace = useCallback(() => {
+    setPin((p) => p.slice(0, -1));
     setError(false);
-  };
+  }, []);
+
+  // Physical keyboard support — the admin entry is desktop-first, so digits,
+  // Backspace, and Escape must work without the mouse.
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (/^[0-9]$/.test(e.key)) handleDigit(e.key);
+      else if (e.key === 'Backspace') handleBackspace();
+      else if (e.key === 'Escape' && onBack) onBack();
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [handleDigit, handleBackspace, onBack]);
 
   const digits = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'delete'];
 
@@ -97,9 +111,9 @@ export function PinPad({ title, subtitle, correctPin, onSuccess, onBack }: PinPa
                 <button
                   key="delete"
                   type="button"
-                  onClick={handleClear}
+                  onClick={handleBackspace}
                   disabled={pin.length === 0}
-                  aria-label="مسح"
+                  aria-label="حذف آخر رقم"
                   className="flex items-center justify-center h-14 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30"
                 >
                   <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
