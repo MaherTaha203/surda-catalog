@@ -34,6 +34,19 @@ export function ImageViewer({ src, alt, open, onClose, images, initialIndex = 0 
     [gallery.length],
   );
 
+  // Opening: start from a clean state (zoom/index persist across close otherwise,
+  // because the component stays mounted) and lock the page scroll behind the overlay.
+  useEffect(() => {
+    if (!open) return;
+    setIndex((i) => Math.min(Math.max(i, 0), gallery.length - 1));
+    setScale(1);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open, gallery.length]);
+
   // Close on Escape
   useEffect(() => {
     if (!open) return;
@@ -75,7 +88,7 @@ export function ImageViewer({ src, alt, open, onClose, images, initialIndex = 0 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (e.touches.length === 2) {
       const dist = getDistance(e.touches);
-      const newScale = Math.min(5, Math.max(0.5, initialScale.current * (dist / initialDistance.current)));
+      const newScale = Math.min(5, Math.max(1, initialScale.current * (dist / initialDistance.current)));
       setScale(newScale);
     }
   };
@@ -112,12 +125,16 @@ export function ImageViewer({ src, alt, open, onClose, images, initialIndex = 0 
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
+          role="dialog"
+          aria-modal="true"
+          aria-label={alt}
           className="fixed inset-0 z-50 bg-foreground/95 flex items-center justify-center"
           onClick={() => scale === 1 && onClose()}
         >
           {/* Close button */}
           <button
             type="button"
+            autoFocus
             onClick={onClose}
             aria-label="إغلاق"
             className="absolute top-4 left-4 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-background/10 text-background hover:bg-background/20 transition-colors"
@@ -131,9 +148,9 @@ export function ImageViewer({ src, alt, open, onClose, images, initialIndex = 0 
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                setScale((s) => Math.max(0.5, s - 0.5));
+                setScale((s) => Math.max(1, s - 0.5));
               }}
-              disabled={scale <= 0.5}
+              disabled={scale <= 1}
               aria-label="تصغير"
               className="w-10 h-10 flex items-center justify-center rounded-full bg-background/10 text-background hover:bg-background/20 transition-colors disabled:opacity-30"
             >
