@@ -142,9 +142,16 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.code(400).send({ error: 'Bad Request', message: 'Product name cannot be empty' });
       }
       try {
+        const existing = products.get(id);
         const updated = products.update(id, patch);
         if (!updated) {
           return reply.code(404).send({ error: 'Not Found', message: `Product '${id}' not found` });
+        }
+        // The image was replaced or cleared — remove the old file only AFTER the
+        // row update succeeded, so a failed update can never leave the product
+        // pointing at an already-deleted file (best-effort, like DELETE below).
+        if (existing?.imageUrl && 'imageUrl' in patch && existing.imageUrl !== updated.imageUrl) {
+          await storage.deleteByUrl(existing.imageUrl);
         }
         return updated;
       } catch (err) {

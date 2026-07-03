@@ -7,6 +7,9 @@ interface AdminProductRowProps {
   index: number;
   isFirst: boolean;
   isLast: boolean;
+  /** Reordering is unavailable while a reorder is saving or the list is filtered. */
+  reorderDisabled?: boolean;
+  deleteDisabled?: boolean;
   onEdit: (product: Product) => void;
   onDelete: (id: string) => void;
   onToggleHide: (id: string, currentHidden: number) => void;
@@ -15,7 +18,7 @@ interface AdminProductRowProps {
 }
 
 export function AdminProductRow({
-  product, index, isFirst, isLast,
+  product, index, isFirst, isLast, reorderDisabled, deleteDisabled,
   onEdit, onDelete, onToggleHide, onMoveUp, onMoveDown,
 }: AdminProductRowProps) {
   const hidden = Number(product.isHidden) > 0;
@@ -24,16 +27,17 @@ export function AdminProductRow({
     <motion.div
       initial={{ opacity: 0, x: -16 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.25, delay: index * 0.04 }}
+      // Cap the stagger so long lists don't take seconds to finish appearing.
+      transition={{ duration: 0.25, delay: Math.min(index, 10) * 0.04 }}
       className={`flex items-center gap-3 p-3 rounded-xl border transition-colors ${
         hidden ? 'bg-muted/50 border-border/50 opacity-70' : 'bg-card border-border'
       }`}
     >
       {/* Reorder buttons */}
       <div className="hidden sm:flex flex-col items-center gap-0.5 text-muted-foreground/40">
-        <button type="button" onClick={onMoveUp} disabled={isFirst} aria-label="نقل لأعلى"
+        <button type="button" onClick={onMoveUp} disabled={isFirst || reorderDisabled} aria-label="نقل لأعلى"
           className="hover:text-foreground transition-colors disabled:opacity-20">▲</button>
-        <button type="button" onClick={onMoveDown} disabled={isLast} aria-label="نقل لأسفل"
+        <button type="button" onClick={onMoveDown} disabled={isLast || reorderDisabled} aria-label="نقل لأسفل"
           className="hover:text-foreground transition-colors disabled:opacity-20">▼</button>
       </div>
       {/* Thumbnail */}
@@ -41,13 +45,13 @@ export function AdminProductRow({
         {product.imageUrl ? (
           <img src={product.imageUrl} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-contain" />
         ) : (
-          <div className="flex items-center justify-center w-full h-full text-muted-foreground"><Package size={20} /></div>
+          <div className="flex items-center justify-center w-full h-full text-muted-foreground"><Package size={20} aria-hidden /></div>
         )}
       </div>
       {/* Info */}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-bold text-foreground truncate">{product.name}</p>
-        <p className="text-xs text-muted-foreground">{product.category} · ₪{Number(product.cartonPrice).toLocaleString('ar-SA')}</p>
+        <p className="text-xs text-muted-foreground">{product.category} · ₪{Number(product.cartonPrice).toLocaleString('en-US')}</p>
       </div>
       {/* Hidden badge */}
       {hidden && (
@@ -64,9 +68,10 @@ export function AdminProductRow({
           className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors">
           <Edit size={16} />
         </button>
-        <button type="button" onClick={() => { if (confirm('هل أنت متأكد من حذف هذا المنتج؟')) onDelete(product.id); }}
+        <button type="button" disabled={deleteDisabled}
+          onClick={() => { if (confirm('هل أنت متأكد من حذف هذا المنتج؟')) onDelete(product.id); }}
           aria-label="حذف المنتج"
-          className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
+          className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40">
           <Trash2 size={16} />
         </button>
       </div>

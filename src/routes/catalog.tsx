@@ -79,13 +79,6 @@ function CatalogPage() {
                   <span className="hidden sm:inline">لوحة التحكم</span>
                 </Link>
               )}
-              <Link
-                to="/settings"
-                aria-label="الإعدادات"
-                className="p-2 rounded-lg text-muted-foreground hover:bg-muted transition-colors"
-              >
-                <Settings size={18} />
-              </Link>
               <button
                 type="button"
                 onClick={handleLogout}

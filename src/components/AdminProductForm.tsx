@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { X, Plus, Upload, Check } from 'lucide-react';
 import { toast } from '@blinkdotnew/ui';
@@ -42,6 +42,9 @@ const emptyForm: FormData = {
   category: 'مواد التنظيف',
 };
 
+const inputClass =
+  'w-full h-11 px-4 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring';
+
 export function AdminProductForm({ open, editingProduct, productCount, onClose, onSaved }: AdminProductFormProps) {
   const [form, setForm] = useState<FormData>(() => {
     if (editingProduct) {
@@ -64,20 +67,74 @@ export function AdminProductForm({ open, editingProduct, productCount, onClose, 
   const [status, setStatus] = useState<UploadStatus>('idle');
   const busy = status !== 'idle' && status !== 'completed';
 
-  const uploadImage = useCallback(
-    async (file: File): Promise<string> => {
-      // Replace: pass the current image so the server deletes the old file.
-      return uploadProductImage(file, editingProduct?.imageUrl || undefined);
+  // The initial snapshot never changes after mount — used for the dirty check.
+  const initialForm = useRef(form);
+  const isDirty = imageFile !== null || JSON.stringify(form) !== JSON.stringify(initialForm.current);
+
+  // Closing must be deliberate: never while saving, and never silently
+  // discarding edits (a stray tap outside used to wipe all input).
+  const requestClose = () => {
+    if (busy) return;
+    if (isDirty && !confirm('لديك تغييرات غير محفوظة. هل تريد الإغلاق دون حفظ؟')) return;
+    onClose();
+  };
+  const requestCloseRef = useRef(requestClose);
+  requestCloseRef.current = requestClose;
+
+  // A click only counts as a backdrop click when the press ALSO started there —
+  // dragging out of a text field and releasing outside must not close the form.
+  const backdropPressed = useRef(false);
+
+  // Escape closes (same guarded path) + page scroll is locked behind the modal.
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') requestCloseRef.current();
+    };
+    window.addEventListener('keydown', handleKey);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', handleKey);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
+  // Object URLs for previews are revoked when replaced and on unmount.
+  const blobPreview = useRef<string | null>(null);
+  useEffect(
+    () => () => {
+      if (blobPreview.current) URL.revokeObjectURL(blobPreview.current);
     },
-    [editingProduct],
+    [],
   );
+
+  const handleFileSelect = (file: File) => {
+    if (blobPreview.current) URL.revokeObjectURL(blobPreview.current);
+    const url = URL.createObjectURL(file);
+    blobPreview.current = url;
+    setImageFile(file);
+    setImagePreview(url);
+  };
 
   const handleSubmit = async () => {
     if (!form.name.trim()) { toast.error('يرجى إدخال اسم المنتج'); return; }
+    const numbers = {
+      cartonQuantity: parseInt(form.cartonQuantity) || 0,
+      cartonPrice: parseFloat(form.cartonPrice) || 0,
+      offerPrice: parseFloat(form.offerPrice) || 0,
+      offerQuantity: parseInt(form.offerQuantity) || 0,
+      bonusQuantity: parseInt(form.bonusQuantity) || 0,
+    };
+    if (Object.values(numbers).some((n) => n < 0)) {
+      toast.error('القيم والأسعار لا يمكن أن تكون سالبة');
+      return;
+    }
     try {
       let imageUrl = editingProduct?.imageUrl || '';
       if (imageFile) {
-        // Prepare → compress (in a Web Worker) → upload.
+        // Prepare → compress (in a Web Worker) → upload. The old image is NOT
+        // deleted here — the server removes it after the product row update
+        // succeeds, so a failed save never leaves a broken image reference.
         setStatus('preparing');
         let fileToUpload = imageFile;
         try {
@@ -92,7 +149,7 @@ export function AdminProductForm({ open, editingProduct, productCount, onClose, 
           throw e;
         }
         setStatus('uploading');
-        imageUrl = await uploadImage(fileToUpload);
+        imageUrl = await uploadProductImage(fileToUpload);
       }
 
       // Server-side processing of the product record.
@@ -101,11 +158,7 @@ export function AdminProductForm({ open, editingProduct, productCount, onClose, 
         name: form.name.trim(),
         description: form.description.trim(),
         size: form.category === 'مواد التنظيف' ? form.size.trim() : '',
-        cartonQuantity: parseInt(form.cartonQuantity) || 0,
-        cartonPrice: parseFloat(form.cartonPrice) || 0,
-        offerPrice: parseFloat(form.offerPrice) || 0,
-        offerQuantity: parseInt(form.offerQuantity) || 0,
-        bonusQuantity: parseInt(form.bonusQuantity) || 0,
+        ...numbers,
         category: form.category,
         imageUrl,
       };
@@ -133,25 +186,35 @@ export function AdminProductForm({ open, editingProduct, productCount, onClose, 
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 bg-foreground/50 flex items-end sm:items-center justify-center p-0 sm:p-4"
-      onClick={onClose}
+      onMouseDown={(e) => { backdropPressed.current = e.target === e.currentTarget; }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && backdropPressed.current) requestClose();
+      }}
     >
       <motion.div
         initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 100, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="product-form-title"
         className="w-full sm:max-w-lg bg-card rounded-t-2xl sm:rounded-2xl max-h-[85vh] overflow-y-auto"
       >
         <div className="sticky top-0 bg-card border-b border-border px-5 py-4 flex items-center justify-between rounded-t-2xl z-10">
-          <h2 className="text-lg font-bold text-foreground">{editingProduct ? 'تعديل منتج' : 'إضافة منتج جديد'}</h2>
-          <button type="button" onClick={onClose} className="p-2 rounded-lg hover:bg-muted transition-colors"><X size={20} /></button>
+          <h2 id="product-form-title" className="text-lg font-bold text-foreground">
+            {editingProduct ? 'تعديل منتج' : 'إضافة منتج جديد'}
+          </h2>
+          <button type="button" onClick={requestClose} disabled={busy} aria-label="إغلاق"
+            className="p-2 rounded-lg hover:bg-muted transition-colors disabled:opacity-40">
+            <X size={20} />
+          </button>
         </div>
         <div className="p-5 space-y-4">
           {/* Category */}
           <div>
-            <label className="block text-sm font-medium text-foreground mb-2">الفئة</label>
-            <div className="flex gap-2">
+            <span className="block text-sm font-medium text-foreground mb-2">الفئة</span>
+            <div className="flex gap-2" role="radiogroup" aria-label="الفئة">
               {(['مواد التنظيف', 'أدوات التنظيف'] as ProductCategory[]).map((cat) => (
-                <button key={cat} type="button"
+                <button key={cat} type="button" role="radio" aria-checked={form.category === cat}
                   onClick={() => setForm({ ...form, category: cat, size: cat === 'أدوات التنظيف' ? '' : form.size })}
                   className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors ${form.category === cat ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>
                   {cat}
@@ -161,71 +224,79 @@ export function AdminProductForm({ open, editingProduct, productCount, onClose, 
           </div>
           {/* Name */}
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">اسم المنتج *</label>
-            <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="w-full h-11 px-4 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring"
+            <label htmlFor="pf-name" className="block text-sm font-medium text-foreground mb-1.5">اسم المنتج *</label>
+            <input id="pf-name" type="text" autoFocus value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+              className={inputClass}
               placeholder="أدخل اسم المنتج" />
           </div>
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">وصف مختصر</label>
-            <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
+            <label htmlFor="pf-description" className="block text-sm font-medium text-foreground mb-1.5">وصف مختصر</label>
+            <textarea id="pf-description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
               rows={3} className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring resize-none"
               placeholder="وصف مختصر للمنتج" />
           </div>
           {/* Size */}
           {form.category === 'مواد التنظيف' && (
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">الحجم</label>
-              <input type="text" value={form.size} onChange={(e) => setForm({ ...form, size: e.target.value })}
-                className="w-full h-11 px-4 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring"
+              <label htmlFor="pf-size" className="block text-sm font-medium text-foreground mb-1.5">الحجم</label>
+              <input id="pf-size" type="text" value={form.size} onChange={(e) => setForm({ ...form, size: e.target.value })}
+                className={inputClass}
                 placeholder="مثال: 5 لتر" />
             </div>
           )}
           {/* Carton Qty & Price */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">الكمية في الكرتون</label>
-              <input type="number" value={form.cartonQuantity} onChange={(e) => setForm({ ...form, cartonQuantity: e.target.value })}
-                className="w-full h-11 px-4 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring" placeholder="0" />
+              <label htmlFor="pf-carton-qty" className="block text-sm font-medium text-foreground mb-1.5">الكمية في الكرتون</label>
+              <input id="pf-carton-qty" type="number" min="0" inputMode="numeric" value={form.cartonQuantity}
+                onChange={(e) => setForm({ ...form, cartonQuantity: e.target.value })}
+                className={inputClass} placeholder="0" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">سعر الكرتون (₪)</label>
-              <input type="number" step="0.01" value={form.cartonPrice} onChange={(e) => setForm({ ...form, cartonPrice: e.target.value })}
-                className="w-full h-11 px-4 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring" placeholder="0.00" />
+              <label htmlFor="pf-carton-price" className="block text-sm font-medium text-foreground mb-1.5">سعر الكرتون (₪)</label>
+              <input id="pf-carton-price" type="number" min="0" step="0.01" inputMode="decimal" value={form.cartonPrice}
+                onChange={(e) => setForm({ ...form, cartonPrice: e.target.value })}
+                className={inputClass} placeholder="0.00" />
             </div>
           </div>
           {/* Offer: price, quantity, bonus (entered manually — nothing is calculated) */}
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">سعر العرض (₪)</label>
-              <input type="number" step="0.01" value={form.offerPrice} onChange={(e) => setForm({ ...form, offerPrice: e.target.value })}
-                className="w-full h-11 px-4 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring" placeholder="0.00" />
+              <label htmlFor="pf-offer-price" className="block text-sm font-medium text-foreground mb-1.5">سعر العرض (₪)</label>
+              <input id="pf-offer-price" type="number" min="0" step="0.01" inputMode="decimal" value={form.offerPrice}
+                onChange={(e) => setForm({ ...form, offerPrice: e.target.value })}
+                className={inputClass} placeholder="0.00" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">كمية العرض</label>
-              <input type="number" value={form.offerQuantity} onChange={(e) => setForm({ ...form, offerQuantity: e.target.value })}
-                className="w-full h-11 px-4 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring" placeholder="0" />
+              <label htmlFor="pf-offer-qty" className="block text-sm font-medium text-foreground mb-1.5">كمية العرض</label>
+              <input id="pf-offer-qty" type="number" min="0" inputMode="numeric" value={form.offerQuantity}
+                onChange={(e) => setForm({ ...form, offerQuantity: e.target.value })}
+                className={inputClass} placeholder="0" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">الكمية المجانية</label>
-              <input type="number" value={form.bonusQuantity} onChange={(e) => setForm({ ...form, bonusQuantity: e.target.value })}
-                className="w-full h-11 px-4 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring" placeholder="0" />
+              <label htmlFor="pf-bonus-qty" className="block text-sm font-medium text-foreground mb-1.5">الكمية المجانية</label>
+              <input id="pf-bonus-qty" type="number" min="0" inputMode="numeric" value={form.bonusQuantity}
+                onChange={(e) => setForm({ ...form, bonusQuantity: e.target.value })}
+                className={inputClass} placeholder="0" />
             </div>
           </div>
           {/* Image */}
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">صورة المنتج</label>
-            <label className="flex flex-col items-center justify-center gap-2 p-6 rounded-xl border-2 border-dashed border-border hover:border-ring/50 transition-colors cursor-pointer">
+            <span className="block text-sm font-medium text-foreground mb-1.5">صورة المنتج</span>
+            <label className="flex flex-col items-center justify-center gap-2 p-6 rounded-xl border-2 border-dashed border-border hover:border-ring/50 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20 transition-colors cursor-pointer">
               {imagePreview ? (
-                <img src={imagePreview} alt="Preview" className="w-full max-h-48 object-contain rounded-lg" />
+                <img src={imagePreview} alt="معاينة صورة المنتج" className="w-full max-h-48 object-contain rounded-lg" />
               ) : (
-                <><Upload size={28} className="text-muted-foreground" /><span className="text-sm text-muted-foreground">اضغط لرفع صورة</span></>
+                <><Upload size={28} className="text-muted-foreground" aria-hidden /><span className="text-sm text-muted-foreground">اضغط لرفع صورة</span></>
               )}
-              <input type="file" accept="image/*" onChange={(e) => {
-                const file = e.target.files?.[0]; if (!file) return;
-                setImageFile(file); setImagePreview(URL.createObjectURL(file));
-              }} className="hidden" />
+              {imagePreview && <span className="text-xs text-muted-foreground">اضغط لاستبدال الصورة</span>}
+              <input type="file" accept="image/*" aria-label="اختيار صورة المنتج" onChange={(e) => {
+                const file = e.target.files?.[0];
+                // Allow re-picking the same file later (e.g. after switching away).
+                e.target.value = '';
+                if (file) handleFileSelect(file);
+              }} className="sr-only" />
             </label>
           </div>
           {/* Submit */}
