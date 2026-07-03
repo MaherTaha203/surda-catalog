@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createFileRoute, useNavigate, Link } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
-import { Search, LayoutDashboard, LogOut, Package, Droplets, Brush, SlidersHorizontal } from 'lucide-react';
+import { Search, Lock, LogOut, Package, Droplets, Brush, SlidersHorizontal } from 'lucide-react';
 import { useProducts } from '@/hooks/useProducts';
 import { useCatalogSettings } from '@/hooks/useCatalogSettings';
 import { ProductCard } from '@/components/ProductCard';
+import { AdminPinDialog } from '@/components/AdminPinDialog';
 import { BrandMark } from '@/components/BrandMark';
-import { getCompanyLogo, lockPin, isAdminUnlocked } from '@/lib/storage';
+import { getCompanyLogo, lockPin, unlockPin, unlockAdmin, isAdminUnlocked } from '@/lib/storage';
 import { useIsClient } from '@/hooks/useIsClient';
 import { useDisplayPrefs, effectiveShowPrices, DENSITY_GRID, FONT_CLASSES } from '@/lib/display-prefs';
 import type { ProductCategory } from '@/types/product';
@@ -33,6 +34,7 @@ function CatalogPage() {
   const companyLogo = getCompanyLogo();
   const adminMode = isAdminUnlocked();
   const isClient = useIsClient();
+  const [pinDialogOpen, setPinDialogOpen] = useState(false);
 
   const settings = useCatalogSettings();
   const { prefs } = useDisplayPrefs();
@@ -100,15 +102,16 @@ function CatalogPage() {
 
             {/* Actions */}
             <div className="flex items-center gap-1">
-              {adminMode && (
-                <Link
-                  to="/admin"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
-                >
-                  <LayoutDashboard size={14} />
-                  <span className="hidden sm:inline">لوحة التحكم</span>
-                </Link>
-              )}
+              {/* Discreet admin entry — a plain system-looking lock icon.
+                  Unlocked sessions go straight in; otherwise the PIN dialog opens. */}
+              <button
+                type="button"
+                onClick={() => (adminMode ? navigate({ to: '/admin' }) : setPinDialogOpen(true))}
+                aria-label="لوحة التحكم"
+                className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                <Lock size={18} />
+              </button>
               <Link
                 to="/preferences"
                 aria-label="خيارات العرض"
@@ -224,6 +227,17 @@ function CatalogPage() {
           </div>
         )}
       </main>
+
+      <AdminPinDialog
+        open={pinDialogOpen}
+        onClose={() => setPinDialogOpen(false)}
+        onSuccess={() => {
+          unlockPin();
+          unlockAdmin();
+          setPinDialogOpen(false);
+          navigate({ to: '/admin' });
+        }}
+      />
     </div>
   );
 }

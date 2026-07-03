@@ -1,52 +1,50 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Edit, Trash2, Eye, EyeOff, Package } from 'lucide-react';
+import { Edit, Trash2, Eye, EyeOff, Package, GripVertical } from 'lucide-react';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import type { Product } from '@/types/product';
 
 interface AdminProductRowProps {
   product: Product;
-  index: number;
-  isFirst: boolean;
-  isLast: boolean;
-  /** Reordering is unavailable while a reorder is saving or the list is filtered. */
-  reorderDisabled?: boolean;
+  /** Reordering is unavailable while saving or while the list is filtered. */
+  dragDisabled?: boolean;
+  /** This row is currently being dragged (lifted styling). */
+  dragging?: boolean;
   deleteDisabled?: boolean;
   onEdit: (product: Product) => void;
   onDelete: (id: string) => void;
   onToggleHide: (id: string, currentHidden: number) => void;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
 }
 
+/**
+ * One admin list row. Reordering is drag & drop — mouse-drag the row on
+ * desktop, long-press then drag on touch — handled by the parent list; this
+ * component only renders the grip affordance and the lifted state.
+ */
 export function AdminProductRow({
-  product, index, isFirst, isLast, reorderDisabled, deleteDisabled,
-  onEdit, onDelete, onToggleHide, onMoveUp, onMoveDown,
+  product, dragDisabled, dragging, deleteDisabled,
+  onEdit, onDelete, onToggleHide,
 }: AdminProductRowProps) {
   const hidden = Number(product.isHidden) > 0;
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, x: -16 }}
-      animate={{ opacity: 1, x: 0 }}
-      // Cap the stagger so long lists don't take seconds to finish appearing.
-      transition={{ duration: 0.25, delay: Math.min(index, 10) * 0.04 }}
-      className={`flex items-center gap-3 p-3 rounded-xl border transition-colors ${
-        hidden ? 'bg-muted/50 border-border/50 opacity-70' : 'bg-card border-border'
-      }`}
+    <div
+      className={`flex items-center gap-3 p-3 rounded-xl border transition-colors select-none ${
+        dragging
+          ? 'bg-card border-primary/40 shadow-lg'
+          : hidden
+            ? 'bg-muted/50 border-border/50 opacity-70'
+            : 'bg-card border-border'
+      } ${dragDisabled ? '' : 'cursor-grab'} ${dragging ? 'cursor-grabbing' : ''}`}
     >
-      {/* Reorder buttons */}
-      <div className="hidden sm:flex flex-col items-center gap-0.5 text-muted-foreground/40">
-        <button type="button" onClick={onMoveUp} disabled={isFirst || reorderDisabled} aria-label="نقل لأعلى"
-          className="hover:text-foreground transition-colors disabled:opacity-20">▲</button>
-        <button type="button" onClick={onMoveDown} disabled={isLast || reorderDisabled} aria-label="نقل لأسفل"
-          className="hover:text-foreground transition-colors disabled:opacity-20">▼</button>
-      </div>
+      {/* Drag affordance */}
+      {!dragDisabled && (
+        <GripVertical size={16} className="shrink-0 text-muted-foreground/40" aria-hidden />
+      )}
       {/* Thumbnail */}
       <div className="w-14 h-14 rounded-lg bg-muted overflow-hidden shrink-0">
         {product.imageUrl ? (
-          <img src={product.imageUrl} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-contain" />
+          <img src={product.imageUrl} alt={product.name} loading="lazy" decoding="async" draggable={false} className="w-full h-full object-contain" />
         ) : (
           <div className="flex items-center justify-center w-full h-full text-muted-foreground"><Package size={20} aria-hidden /></div>
         )}
@@ -91,6 +89,6 @@ export function AdminProductRow({
         }}
         onCancel={() => setConfirmDelete(false)}
       />
-    </motion.div>
+    </div>
   );
 }
