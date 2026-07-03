@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { createFileRoute, useNavigate, Link } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
 import { Search, LayoutDashboard, LogOut, Package, Droplets, Brush, SlidersHorizontal } from 'lucide-react';
@@ -8,7 +8,7 @@ import { ProductCard } from '@/components/ProductCard';
 import { BrandMark } from '@/components/BrandMark';
 import { getCompanyLogo, lockPin, isAdminUnlocked } from '@/lib/storage';
 import { useIsClient } from '@/hooks/useIsClient';
-import { useDisplayPrefs, DENSITY_GRID, FONT_CLASSES } from '@/lib/display-prefs';
+import { useDisplayPrefs, effectiveShowPrices, DENSITY_GRID, FONT_CLASSES } from '@/lib/display-prefs';
 import type { ProductCategory } from '@/types/product';
 
 export const Route = createFileRoute('/catalog')({
@@ -37,17 +37,7 @@ function CatalogPage() {
   const settings = useCatalogSettings();
   const { prefs } = useDisplayPrefs();
   const font = FONT_CLASSES[prefs.fontScale];
-  // Prices show only when the admin keeps them globally available AND this
-  // device hasn't chosen to hide them.
-  const showPrices = settings.showPrices && prefs.showPrices;
-
-  // View-only ordering — a per-device lens over the admin-owned sortOrder.
-  const orderedProducts = useMemo(() => {
-    if (prefs.viewOrder === 'original') return products;
-    const sorted = [...products].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
-    if (prefs.viewOrder === 'name-desc') sorted.reverse();
-    return sorted;
-  }, [products, prefs.viewOrder]);
+  const showPrices = effectiveShowPrices(settings, prefs);
 
   const handleLogout = () => {
     lockPin();
@@ -219,7 +209,7 @@ function CatalogPage() {
           </motion.div>
         ) : (
           <div className={DENSITY_GRID[prefs.density]}>
-            {orderedProducts.map((product, i) => (
+            {products.map((product, i) => (
               <ProductCard
                 key={product.id}
                 product={product}

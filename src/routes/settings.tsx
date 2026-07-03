@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { createFileRoute, useNavigate, Link } from '@tanstack/react-router';
-import { ArrowRight, ImagePlus, KeyRound, Trash2, Check, Coins, ImageOff, SlidersHorizontal } from 'lucide-react';
+import { ArrowRight, ImagePlus, KeyRound, Trash2, Check, Coins, ImageOff, ListOrdered } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@blinkdotnew/ui';
 import {
@@ -16,14 +16,7 @@ import { useCatalogSettings, CATALOG_SETTINGS_KEY } from '@/hooks/useCatalogSett
 import { updateCatalogSettings, type CatalogSettings } from '@/api/settings';
 import { uploadProductImage } from '@/api/products';
 import { compressProductImage, ImageValidationError } from '@/lib/image-compression';
-import {
-  useDisplayPrefs,
-  DENSITY_OPTIONS,
-  FONT_SCALE_OPTIONS,
-  THEME_OPTIONS,
-  VIEW_ORDER_OPTIONS,
-} from '@/lib/display-prefs';
-import { OptionGroup, ToggleSwitch } from '@/components/PrefControls';
+import { ToggleSwitch } from '@/components/PrefControls';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 export const Route = createFileRoute('/settings')({
@@ -81,6 +74,81 @@ function SectionCard({
   );
 }
 
+/** Shared image picker row (logo / default product image) — one visual style. */
+function ImagePickerRow({
+  preview,
+  previewAlt,
+  emptyIcon,
+  uploadLabel,
+  replaceLabel,
+  removeLabel,
+  busy,
+  onPick,
+  onRemove,
+  inputLabel,
+  previewFit = 'cover',
+}: {
+  preview: string;
+  previewAlt: string;
+  emptyIcon: React.ReactNode;
+  uploadLabel: string;
+  replaceLabel: string;
+  removeLabel: string;
+  busy?: boolean;
+  onPick: (file: File) => void;
+  onRemove: () => void;
+  inputLabel: string;
+  previewFit?: 'cover' | 'contain';
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  return (
+    <div className="flex items-center gap-4">
+      {preview ? (
+        <img
+          src={preview}
+          alt={previewAlt}
+          className={`h-16 w-16 rounded-xl border border-border ${previewFit === 'cover' ? 'object-cover' : 'object-contain bg-muted'}`}
+        />
+      ) : (
+        <div className="h-16 w-16 rounded-xl bg-muted flex items-center justify-center text-muted-foreground">
+          {emptyIcon}
+        </div>
+      )}
+      <div className="flex flex-col gap-2">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => inputRef.current?.click()}
+          className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+        >
+          {busy ? 'جاري الرفع...' : preview ? replaceLabel : uploadLabel}
+        </button>
+        {preview && !busy && (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors"
+          >
+            <Trash2 size={14} aria-hidden /> {removeLabel}
+          </button>
+        )}
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        aria-label={inputLabel}
+        className="sr-only"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (file) onPick(file);
+        }}
+      />
+    </div>
+  );
+}
+
 function SettingsPage() {
   const navigate = useNavigate();
   const isClient = useIsClient();
@@ -92,7 +160,6 @@ function SettingsPage() {
   }, [unlocked, navigate, isClient]);
 
   const settings = useCatalogSettings();
-  const { prefs, setPref } = useDisplayPrefs();
 
   const settingsMutation = useMutation({
     mutationFn: (patch: Partial<CatalogSettings>) => updateCatalogSettings(patch),
@@ -108,10 +175,8 @@ function SettingsPage() {
     if (isClient) setLogo(getCompanyLogo());
   }, [isClient]);
   const [confirmRemoveLogo, setConfirmRemoveLogo] = useState(false);
-  const logoInputRef = useRef<HTMLInputElement>(null);
 
   // Default product image (server-side)
-  const defaultImgInputRef = useRef<HTMLInputElement>(null);
   const [confirmRemoveDefault, setConfirmRemoveDefault] = useState(false);
   const [uploadingDefault, setUploadingDefault] = useState(false);
 
@@ -227,161 +292,85 @@ function SettingsPage() {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-        {/* Prices — global availability */}
-        <SectionCard
-          icon={<Coins size={18} className="text-primary" aria-hidden />}
-          title="الأسعار"
-          description="إعداد عام يسري على كل الأجهزة فوراً."
-        >
-          <ToggleSwitch
-            label="إتاحة الأسعار في الكتالوج"
-            description="عند الإيقاف تختفي الأسعار لدى الجميع، ولا يستطيع المندوبون إظهارها."
-            checked={settings.showPrices}
-            disabled={settingsMutation.isPending}
-            onChange={(v) => settingsMutation.mutate({ showPrices: v })}
-          />
-        </SectionCard>
-
-        {/* Default product image — global */}
-        <SectionCard
-          icon={<ImageOff size={18} className="text-primary" aria-hidden />}
-          title="الصورة الافتراضية للمنتجات"
-          description="تُعرض تلقائياً لأي منتج بلا صورة، على كل الأجهزة."
-        >
-          <div className="flex items-center gap-4">
-            {settings.defaultProductImageUrl ? (
-              <img
-                src={settings.defaultProductImageUrl}
-                alt="الصورة الافتراضية الحالية"
-                className="h-16 w-16 rounded-xl object-contain bg-muted border border-border"
-              />
-            ) : (
-              <div className="h-16 w-16 rounded-xl bg-muted flex items-center justify-center text-muted-foreground">
-                <ImageOff size={22} strokeWidth={1.5} aria-hidden />
-              </div>
-            )}
-            <div className="flex flex-col gap-2">
-              <button
-                type="button"
-                disabled={uploadingDefault}
-                onClick={() => defaultImgInputRef.current?.click()}
-                className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
-              >
-                {uploadingDefault
-                  ? 'جاري الرفع...'
-                  : settings.defaultProductImageUrl
-                    ? 'استبدال الصورة'
-                    : 'رفع صورة'}
-              </button>
-              {settings.defaultProductImageUrl && !uploadingDefault && (
-                <button
-                  type="button"
-                  onClick={() => setConfirmRemoveDefault(true)}
-                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors"
-                >
-                  <Trash2 size={14} aria-hidden /> إزالة الصورة
-                </button>
-              )}
-            </div>
-            <input
-              ref={defaultImgInputRef}
-              type="file"
-              accept="image/*"
-              aria-label="اختيار الصورة الافتراضية"
-              className="sr-only"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                e.target.value = '';
-                if (file) handleDefaultImagePick(file);
-              }}
-            />
-          </div>
-        </SectionCard>
-
-        {/* Device display options */}
-        <SectionCard
-          icon={<SlidersHorizontal size={18} className="text-primary" aria-hidden />}
-          title="خيارات العرض"
-          description="خيارات عرض تخص هذا الجهاز فقط. ترتيب المنتجات الأصلي يظل محفوظاً ولا يتغير."
-        >
-          <div className="space-y-6">
-            <OptionGroup
-              label="ترتيب العرض"
-              description="طريقة عرض فقط — لا تغيّر الترتيب الأصلي المحفوظ."
-              options={VIEW_ORDER_OPTIONS}
-              value={prefs.viewOrder}
-              onChange={(v) => setPref('viewOrder', v)}
-            />
-            <OptionGroup
-              label="عدد المنتجات في الصفحة"
-              options={DENSITY_OPTIONS}
-              value={prefs.density}
-              onChange={(v) => setPref('density', v)}
-            />
-            <OptionGroup
-              label="خلفية الكتالوج"
-              options={THEME_OPTIONS}
-              value={prefs.theme}
-              onChange={(v) => setPref('theme', v)}
-            />
-            <OptionGroup
-              label="حجم الخط"
-              description="يؤثر على اسم المنتج والوصف والسعر ومعلومات العرض وتسميات الفئات."
-              options={FONT_SCALE_OPTIONS}
-              value={prefs.fontScale}
-              onChange={(v) => setPref('fontScale', v)}
-            />
-          </div>
-        </SectionCard>
-
-        {/* Company logo */}
+        {/* 1 — Company logo */}
         <SectionCard
           icon={<ImagePlus size={18} className="text-primary" aria-hidden />}
           title="شعار الشركة"
           description="يظهر الشعار في رأس صفحة الكتالوج. يُحفظ على هذا الجهاز."
         >
-          <div className="flex items-center gap-4">
-            {logo ? (
-              <img src={logo} alt="شعار الشركة الحالي" className="h-16 w-16 rounded-xl object-cover border border-border" />
-            ) : (
-              <div className="h-16 w-16 rounded-xl bg-muted flex items-center justify-center text-muted-foreground">
-                <ImagePlus size={22} strokeWidth={1.5} aria-hidden />
-              </div>
-            )}
-            <div className="flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => logoInputRef.current?.click()}
-                className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
-              >
-                {logo ? 'استبدال الشعار' : 'رفع شعار'}
-              </button>
-              {logo && (
-                <button
-                  type="button"
-                  onClick={() => setConfirmRemoveLogo(true)}
-                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors"
-                >
-                  <Trash2 size={14} aria-hidden /> إزالة الشعار
-                </button>
-              )}
-            </div>
-            <input
-              ref={logoInputRef}
-              type="file"
-              accept="image/*"
-              aria-label="اختيار شعار الشركة"
-              className="sr-only"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                e.target.value = '';
-                if (file) handleLogoPick(file);
-              }}
+          <ImagePickerRow
+            preview={logo}
+            previewAlt="شعار الشركة الحالي"
+            emptyIcon={<ImagePlus size={22} strokeWidth={1.5} aria-hidden />}
+            uploadLabel="رفع شعار"
+            replaceLabel="استبدال الشعار"
+            removeLabel="إزالة الشعار"
+            inputLabel="اختيار شعار الشركة"
+            onPick={handleLogoPick}
+            onRemove={() => setConfirmRemoveLogo(true)}
+          />
+        </SectionCard>
+
+        {/* 2 — Default product image */}
+        <SectionCard
+          icon={<ImageOff size={18} className="text-primary" aria-hidden />}
+          title="الصورة الافتراضية للمنتجات"
+          description="تُعرض تلقائياً لأي منتج بلا صورة، على كل الأجهزة."
+        >
+          <ImagePickerRow
+            preview={settings.defaultProductImageUrl}
+            previewAlt="الصورة الافتراضية الحالية"
+            emptyIcon={<ImageOff size={22} strokeWidth={1.5} aria-hidden />}
+            uploadLabel="رفع صورة"
+            replaceLabel="استبدال الصورة"
+            removeLabel="إزالة الصورة"
+            inputLabel="اختيار الصورة الافتراضية"
+            busy={uploadingDefault}
+            previewFit="contain"
+            onPick={handleDefaultImagePick}
+            onRemove={() => setConfirmRemoveDefault(true)}
+          />
+        </SectionCard>
+
+        {/* 3 — Product ordering (managed in the admin panel, never here) */}
+        <SectionCard
+          icon={<ListOrdered size={18} className="text-primary" aria-hidden />}
+          title="ترتيب المنتجات"
+          description="الترتيب الأصلي للكتالوج يملكه المدير وحده، ولا يستطيع المندوبون تغييره."
+        >
+          <Link
+            to="/admin"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            <ListOrdered size={16} aria-hidden /> إدارة ترتيب المنتجات
+          </Link>
+        </SectionCard>
+
+        {/* 4 — Price permissions */}
+        <SectionCard
+          icon={<Coins size={18} className="text-primary" aria-hidden />}
+          title="صلاحيات الأسعار"
+          description="إعدادات عامة تسري على كل الأجهزة فوراً."
+        >
+          <div className="space-y-5">
+            <ToggleSwitch
+              label="إتاحة الأسعار في الكتالوج"
+              description="عند الإيقاف تختفي الأسعار لدى الجميع."
+              checked={settings.showPrices}
+              disabled={settingsMutation.isPending}
+              onChange={(v) => settingsMutation.mutate({ showPrices: v })}
+            />
+            <ToggleSwitch
+              label="السماح للمندوبين بإخفاء الأسعار"
+              description="عند الإيقاف يختفي خيار الأسعار من صفحة خيارات العرض، وتظهر الأسعار دائماً."
+              checked={settings.allowRepPriceToggle}
+              disabled={settingsMutation.isPending || !settings.showPrices}
+              onChange={(v) => settingsMutation.mutate({ allowRepPriceToggle: v })}
             />
           </div>
         </SectionCard>
 
-        {/* Admin PIN */}
+        {/* 5 — Admin PIN */}
         <SectionCard
           icon={<KeyRound size={18} className="text-primary" aria-hidden />}
           title="رمز المدير"

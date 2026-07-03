@@ -22,7 +22,9 @@ export function OptionGroup<T extends string>({
     <div>
       <span className="block text-sm font-medium text-foreground mb-1">{label}</span>
       {description && <p className="text-xs text-muted-foreground mb-2">{description}</p>}
-      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={label}>
+      {/* Equal grid cells → every option button has identical width, height,
+          spacing, and radius regardless of label length. */}
+      <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label={label}>
         {options.map((opt) => (
           <button
             key={opt.value}
@@ -30,7 +32,7 @@ export function OptionGroup<T extends string>({
             role="radio"
             aria-checked={value === opt.value}
             onClick={() => onChange(opt.value)}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium transition-colors ${
+            className={`h-11 px-2 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-1.5 ${
               value === opt.value
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-muted text-muted-foreground hover:bg-muted/80'
@@ -39,11 +41,11 @@ export function OptionGroup<T extends string>({
             {opt.swatch && (
               <span
                 aria-hidden
-                className="w-4 h-4 rounded-full border border-border shadow-sm"
+                className="w-3.5 h-3.5 shrink-0 rounded-full border border-border shadow-sm"
                 style={{ backgroundColor: opt.swatch }}
               />
             )}
-            {opt.label}
+            <span className="truncate">{opt.label}</span>
           </button>
         ))}
       </div>

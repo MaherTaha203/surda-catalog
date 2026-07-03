@@ -7,7 +7,7 @@ import { getProduct } from '@/api/products';
 import { getCachedProducts } from '@/lib/offline-db';
 import { fetchProducts, PRODUCTS_KEY } from '@/hooks/useProducts';
 import { useCatalogSettings } from '@/hooks/useCatalogSettings';
-import { useDisplayPrefs, FONT_CLASSES } from '@/lib/display-prefs';
+import { useDisplayPrefs, effectiveShowPrices, FONT_CLASSES } from '@/lib/display-prefs';
 import { ImageViewer } from '@/components/ImageViewer';
 import type { Product } from '@/types/product';
 
@@ -59,7 +59,7 @@ function ProductDetailPage() {
   const settings = useCatalogSettings();
   const { prefs } = useDisplayPrefs();
   const font = FONT_CLASSES[prefs.fontScale];
-  const showPrices = settings.showPrices && prefs.showPrices;
+  const showPrices = effectiveShowPrices(settings, prefs);
 
   // Coming from the catalog, history back restores its scroll position and
   // filters; on a deep link (no in-app history) fall back to the catalog.

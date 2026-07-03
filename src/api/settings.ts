@@ -8,12 +8,15 @@ import { apiRequest, resolveImageUrl, toStoredImageUrl } from './client';
 export interface CatalogSettings {
   /** Global switch: are prices available in the catalog at all? */
   showPrices: boolean;
+  /** May representatives hide/show prices on their own devices? */
+  allowRepPriceToggle: boolean;
   /** Image shown for products without their own image ('' = none). */
   defaultProductImageUrl: string;
 }
 
 export const CATALOG_SETTINGS_DEFAULTS: CatalogSettings = {
   showPrices: true,
+  allowRepPriceToggle: true,
   defaultProductImageUrl: '',
 };
 
