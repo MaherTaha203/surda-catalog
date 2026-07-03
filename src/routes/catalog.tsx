@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, Link } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
-import { Search, Lock, Settings, LogOut, Package, Droplets, Brush } from 'lucide-react';
+import { Search, LayoutDashboard, LogOut, Package, Droplets, Brush } from 'lucide-react';
 import { useProducts } from '@/hooks/useProducts';
 import { ProductCard } from '@/components/ProductCard';
 import { getCompanyLogo, lockPin, isAdminUnlocked } from '@/lib/storage';
@@ -75,7 +75,7 @@ function CatalogPage() {
                   to="/admin"
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
                 >
-                  <Settings size={14} />
+                  <LayoutDashboard size={14} />
                   <span className="hidden sm:inline">لوحة التحكم</span>
                 </Link>
               )}

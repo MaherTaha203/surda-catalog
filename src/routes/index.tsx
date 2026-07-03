@@ -69,7 +69,7 @@ function PinGate() {
               type="button"
               whileTap={{ scale: 0.97 }}
               onClick={() => setMode('admin')}
-              className="hidden lg:block w-full py-3 rounded-xl border-2 border-border text-muted-foreground font-medium text-sm hover:bg-muted/50 transition-colors"
+              className="block w-full py-3 rounded-xl border-2 border-border text-muted-foreground font-medium text-sm hover:bg-muted/50 transition-colors"
             >
               لوحة المدير
             </motion.button>
