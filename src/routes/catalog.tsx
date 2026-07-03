@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { createFileRoute, useNavigate, Link } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
 import { Search, LayoutDashboard, LogOut, Package, Droplets, Brush, SlidersHorizontal } from 'lucide-react';
@@ -38,6 +38,8 @@ function CatalogPage() {
   const { prefs } = useDisplayPrefs();
   const font = FONT_CLASSES[prefs.fontScale];
   const showPrices = effectiveShowPrices(settings, prefs);
+  // One shared list per render — every card links with the same context.
+  const catalogIds = useMemo(() => products.map((p) => p.id), [products]);
 
   const handleLogout = () => {
     lockPin();
@@ -216,6 +218,7 @@ function CatalogPage() {
                 index={i}
                 showPrice={showPrices}
                 defaultImageUrl={settings.defaultProductImageUrl}
+                catalogIds={catalogIds}
               />
             ))}
           </div>
