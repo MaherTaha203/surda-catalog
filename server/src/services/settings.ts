@@ -5,6 +5,7 @@
  * typed defaults so a fresh database behaves like the app always has:
  *
  *   showPrices             boolean  whether prices are available in the catalog
+ *   allowRepPriceToggle    boolean  may representatives hide/show prices themselves
  *   defaultProductImageUrl string   image shown for products without their own
  *
  * Follows the ProductsService pattern: this is the ONLY place that touches the
@@ -14,11 +15,13 @@ import type { DatabaseSync } from 'node:sqlite';
 
 export interface CatalogSettings {
   showPrices: boolean;
+  allowRepPriceToggle: boolean;
   defaultProductImageUrl: string;
 }
 
 export const SETTINGS_DEFAULTS: CatalogSettings = {
   showPrices: true,
+  allowRepPriceToggle: true,
   defaultProductImageUrl: '',
 };
 
@@ -38,6 +41,7 @@ export class SettingsService {
       try {
         const parsed = JSON.parse(row.value);
         if (row.key === 'showPrices') result.showPrices = Boolean(parsed);
+        if (row.key === 'allowRepPriceToggle') result.allowRepPriceToggle = Boolean(parsed);
         if (row.key === 'defaultProductImageUrl') result.defaultProductImageUrl = String(parsed ?? '');
       } catch {
         /* ignore malformed rows — defaults win */

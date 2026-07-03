@@ -36,6 +36,7 @@ const settingsRoutes: FastifyPluginAsync = async (fastify) => {
     const body = request.body ?? {};
     const patch: Partial<CatalogSettings> = {};
     if ('showPrices' in body) patch.showPrices = Boolean(body.showPrices);
+    if ('allowRepPriceToggle' in body) patch.allowRepPriceToggle = Boolean(body.allowRepPriceToggle);
     if ('defaultProductImageUrl' in body) {
       patch.defaultProductImageUrl =
         body.defaultProductImageUrl === null || body.defaultProductImageUrl === undefined

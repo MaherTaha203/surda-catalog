@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { ArrowRight, SlidersHorizontal } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import {
   useDisplayPrefs,
   DENSITY_OPTIONS,
@@ -22,6 +22,9 @@ export const Route = createFileRoute('/preferences')({
 function PreferencesPage() {
   const { prefs, setPref } = useDisplayPrefs();
   const settings = useCatalogSettings();
+  // Representatives see the price option only while prices are globally
+  // available AND the administrator allows them to choose.
+  const canTogglePrices = settings.showPrices && settings.allowRepPriceToggle;
 
   return (
     <div className="min-h-dvh bg-background" dir="rtl">
@@ -39,12 +42,14 @@ function PreferencesPage() {
 
       <main className="max-w-2xl mx-auto px-4 py-6">
         <section className="p-5 rounded-2xl bg-card border border-border space-y-6">
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal size={18} className="text-primary" aria-hidden />
-            <p className="text-xs text-muted-foreground">
-              خيارات شخصية تُحفظ على هذا الجهاز فقط، ولا تؤثر على بقية الأجهزة.
-            </p>
-          </div>
+          {canTogglePrices && (
+            <ToggleSwitch
+              label="إظهار الأسعار"
+              description="إخفاء الأسعار على هذا الجهاز عند عرض الكتالوج أمام العملاء."
+              checked={prefs.showPrices}
+              onChange={(v) => setPref('showPrices', v)}
+            />
+          )}
 
           <OptionGroup
             label="عدد المنتجات في الصفحة"
@@ -68,16 +73,11 @@ function PreferencesPage() {
             value={prefs.fontScale}
             onChange={(v) => setPref('fontScale', v)}
           />
-
-          {settings.showPrices && (
-            <ToggleSwitch
-              label="إظهار الأسعار"
-              description="إخفاء الأسعار على هذا الجهاز عند عرض الكتالوج أمام العملاء."
-              checked={prefs.showPrices}
-              onChange={(v) => setPref('showPrices', v)}
-            />
-          )}
         </section>
+
+        <p className="text-xs text-muted-foreground text-center mt-4">
+          خيارات شخصية تُحفظ على هذا الجهاز فقط، ولا تؤثر على بقية الأجهزة.
+        </p>
       </main>
     </div>
   );

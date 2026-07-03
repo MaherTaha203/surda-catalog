@@ -9,14 +9,13 @@
  * canonical product order (sortOrder) is owned exclusively by the admin panel.
  */
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import type { CatalogSettings } from '@/api/settings';
 
-export type ViewOrder = 'original' | 'name-asc' | 'name-desc';
 export type GridDensity = 'small' | 'medium' | 'standard' | 'comfortable' | 'large';
 export type FontScale = 'small' | 'standard' | 'large';
 export type CatalogTheme = 'pure-white' | 'warm-white' | 'light-gray';
 
 export interface DisplayPrefs {
-  viewOrder: ViewOrder;
   density: GridDensity;
   fontScale: FontScale;
   theme: CatalogTheme;
@@ -24,7 +23,6 @@ export interface DisplayPrefs {
 }
 
 export const DISPLAY_PREFS_DEFAULTS: DisplayPrefs = {
-  viewOrder: 'original',
   density: 'standard',
   fontScale: 'standard',
   theme: 'warm-white',
@@ -33,13 +31,17 @@ export const DISPLAY_PREFS_DEFAULTS: DisplayPrefs = {
 
 const STORAGE_KEY = 'sarda_display_prefs';
 
-/* ── Option catalogs (labels are what both settings pages render) ─────────── */
+/**
+ * The one price-visibility rule, shared by every catalog surface:
+ * prices must be globally available, and the device choice counts only while
+ * the administrator allows representatives to toggle it.
+ */
+export function effectiveShowPrices(settings: CatalogSettings, prefs: DisplayPrefs): boolean {
+  if (!settings.showPrices) return false;
+  return settings.allowRepPriceToggle ? prefs.showPrices : true;
+}
 
-export const VIEW_ORDER_OPTIONS: { value: ViewOrder; label: string }[] = [
-  { value: 'original', label: 'الترتيب الأصلي' },
-  { value: 'name-asc', label: 'الاسم أ → ي' },
-  { value: 'name-desc', label: 'الاسم ي → أ' },
-];
+/* ── Option catalogs (labels are what both settings pages render) ─────────── */
 
 export const DENSITY_OPTIONS: { value: GridDensity; label: string }[] = [
   { value: 'small', label: 'قليل' },
@@ -56,8 +58,8 @@ export const FONT_SCALE_OPTIONS: { value: FontScale; label: string }[] = [
 ];
 
 export const THEME_OPTIONS: { value: CatalogTheme; label: string; swatch: string }[] = [
-  { value: 'pure-white', label: 'أبيض ناصع', swatch: 'hsl(0 0% 100%)' },
-  { value: 'warm-white', label: 'أبيض دافئ', swatch: 'hsl(40 20% 97%)' },
+  { value: 'pure-white', label: 'أبيض', swatch: 'hsl(0 0% 100%)' },
+  { value: 'warm-white', label: 'عاجي', swatch: 'hsl(40 20% 97%)' },
   { value: 'light-gray', label: 'رمادي فاتح', swatch: 'hsl(220 12% 93%)' },
 ];
 
@@ -146,9 +148,6 @@ function loadPrefs(): DisplayPrefs {
     if (!raw) return DISPLAY_PREFS_DEFAULTS;
     const parsed = JSON.parse(raw) as Partial<DisplayPrefs>;
     return {
-      viewOrder: VIEW_ORDER_OPTIONS.some((o) => o.value === parsed.viewOrder)
-        ? (parsed.viewOrder as ViewOrder)
-        : DISPLAY_PREFS_DEFAULTS.viewOrder,
       density: DENSITY_OPTIONS.some((o) => o.value === parsed.density)
         ? (parsed.density as GridDensity)
         : DISPLAY_PREFS_DEFAULTS.density,
