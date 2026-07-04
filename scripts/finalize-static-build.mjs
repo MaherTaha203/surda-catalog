@@ -52,6 +52,10 @@ rmSync('.vite-out', { recursive: true, force: true })
 // @imports four Google Font families the catalog never uses (Inter, Nunito,
 // Space Grotesk, Plus Jakarta Sans). Strip those imports from the built CSS —
 // five network requests fewer on every first load in the field.
+// Safety net: the app self-hosts its fonts (src/fonts.css), so no external
+// Google Fonts request should ever reach the built CSS. Strip any that sneaks
+// back in (e.g. a re-added @import) — an offline-first PWA must not depend on
+// an external font host.
 const assetsDir = join(DEST, 'assets')
 if (existsSync(assetsDir)) {
   let stripped = 0
@@ -59,14 +63,13 @@ if (existsSync(assetsDir)) {
     if (!file.endsWith('.css')) continue
     const path = join(assetsDir, file)
     const css = readFileSync(path, 'utf8')
-    // Minified form: @import "https://fonts.googleapis.com/…";  (also handle url(...))
     const cleaned = css.replace(
       /@import (?:url\()?["']?https:\/\/fonts\.googleapis\.com\/[^"');]*["']?\)?;?/g,
-      (m) => (m.includes('Tajawal') ? m : ((stripped++), '')),
+      () => ((stripped++), ''),
     )
     if (cleaned !== css) writeFileSync(path, cleaned)
   }
-  console.log(`[finalize] ✓ stripped ${stripped} unused Google Font imports from built CSS`)
+  if (stripped > 0) console.log(`[finalize] ✓ stripped ${stripped} stray external Google Font import(s)`)
 }
 
 if (!existsSync(join(DEST, 'index.html'))) {

@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { PinPad } from '@/components/PinPad';
 import { getAdminPin } from '@/lib/storage';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 interface AdminPinDialogProps {
   open: boolean;
@@ -16,6 +17,10 @@ interface AdminPinDialogProps {
  * catalog); Escape / backdrop / × close it.
  */
 export function AdminPinDialog({ open, onClose, onSuccess }: AdminPinDialogProps) {
+  // Tab stays inside the dialog while it is open.
+  const cardRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(cardRef, open);
+
   // Lock the page scroll behind the dialog (same rule as every other modal).
   useEffect(() => {
     if (!open) return;
@@ -39,6 +44,7 @@ export function AdminPinDialog({ open, onClose, onSuccess }: AdminPinDialogProps
           dir="rtl"
         >
           <motion.div
+            ref={cardRef}
             initial={{ scale: 0.95, opacity: 0, y: 8 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.95, opacity: 0, y: 8 }}

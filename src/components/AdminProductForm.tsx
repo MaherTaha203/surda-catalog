@@ -5,6 +5,7 @@ import { toast } from '@blinkdotnew/ui';
 import { createProduct, updateProduct, uploadProductImage } from '@/api/products';
 import { compressProductImage, ImageValidationError } from '@/lib/image-compression';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import type { Product, ProductCategory } from '@/types/product';
 
 type UploadStatus = 'idle' | 'preparing' | 'compressing' | 'uploading' | 'processing' | 'completed';
@@ -91,6 +92,11 @@ export function AdminProductForm({ open, editingProduct, productCount, onClose, 
   // A click only counts as a backdrop click when the press ALSO started there —
   // dragging out of a text field and releasing outside must not close the form.
   const backdropPressed = useRef(false);
+
+  // Tab stays inside the form; while the discard confirmation is on top the
+  // confirmation's own trap takes over.
+  const cardRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(cardRef, !confirmDiscard);
 
   // Escape closes (same guarded path) + page scroll is locked behind the modal.
   useEffect(() => {
@@ -200,6 +206,7 @@ export function AdminProductForm({ open, editingProduct, productCount, onClose, 
       }}
     >
       <motion.div
+        ref={cardRef}
         initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 100, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         role="dialog"

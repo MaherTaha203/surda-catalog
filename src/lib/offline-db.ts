@@ -4,11 +4,27 @@ const DB_NAME = 'sarda-catalog';
 const DB_VERSION = 1;
 const STORE_NAME = 'products';
 
+// One shared connection per page — opening a new IDBDatabase on every read
+// leaks connections (they are never closed) and adds open-latency to each call.
+let dbPromise: Promise<IDBDatabase> | null = null;
+
 function openDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
+  if (dbPromise) return dbPromise;
+  dbPromise = new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => {
+      dbPromise = null; // allow a retry on the next call
+      reject(request.error);
+    };
+    request.onsuccess = () => {
+      const db = request.result;
+      // If the browser closes the connection (storage pressure, another tab
+      // upgrading), drop the memo so the next call reopens cleanly.
+      db.onclose = () => {
+        dbPromise = null;
+      };
+      resolve(db);
+    };
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -18,6 +34,7 @@ function openDB(): Promise<IDBDatabase> {
       }
     };
   });
+  return dbPromise;
 }
 
 export async function saveProductsToCache(products: Product[]): Promise<void> {
@@ -45,20 +62,13 @@ export async function getCachedProducts(): Promise<Product[]> {
     const store = tx.objectStore(STORE_NAME);
     return new Promise((resolve, reject) => {
       const request = store.getAll();
-      request.onsuccess = () => resolve(request.result || []);
+      // getAll() returns rows in key (id) order — restore the admin's catalog
+      // order so the offline catalog matches the online one.
+      request.onsuccess = () =>
+        resolve((request.result || []).sort((a, b) => a.sortOrder - b.sortOrder));
       request.onerror = () => reject(request.error);
     });
   } catch {
     return [];
-  }
-}
-
-export async function clearCache(): Promise<void> {
-  try {
-    const db = await openDB();
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    tx.objectStore(STORE_NAME).clear();
-  } catch {
-    // noop
   }
 }

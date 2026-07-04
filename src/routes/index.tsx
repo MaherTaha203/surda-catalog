@@ -18,9 +18,11 @@ function LandingPage() {
   const isClient = useIsClient();
 
   useEffect(() => {
-    // Already unlocked? Go straight to catalog
+    // Already unlocked? Go straight to catalog. `replace` keeps this redirect
+    // out of history — otherwise Back from the catalog lands here and gets
+    // bounced forward again forever.
     if (isClient && isPinUnlocked()) {
-      navigate({ to: '/catalog' });
+      navigate({ to: '/catalog', replace: true });
       return;
     }
     setChecked(true);
