@@ -155,8 +155,9 @@ function SettingsPage() {
   const queryClient = useQueryClient();
   const unlocked = isClient && isPinUnlocked() && isAdminUnlocked();
 
+  // `replace` keeps the guarded page out of history — Back must not return to it.
   useEffect(() => {
-    if (isClient && !unlocked) navigate({ to: '/' });
+    if (isClient && !unlocked) navigate({ to: '/', replace: true });
   }, [unlocked, navigate, isClient]);
 
   const settings = useCatalogSettings();

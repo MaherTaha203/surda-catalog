@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Edit, Trash2, Eye, EyeOff, Package, GripVertical } from 'lucide-react';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { resolveThumbUrl } from '@/api/client';
 import type { Product } from '@/types/product';
 
 interface AdminProductRowProps {
@@ -41,10 +42,24 @@ export function AdminProductRow({
       {!dragDisabled && (
         <GripVertical size={16} className="shrink-0 text-muted-foreground/40" aria-hidden />
       )}
-      {/* Thumbnail */}
+      {/* Thumbnail — the 400px thumb, not the full image: with hundreds of
+          products the list would otherwise download every full-size file. */}
       <div className="w-14 h-14 rounded-lg bg-muted overflow-hidden shrink-0">
         {product.imageUrl ? (
-          <img src={product.imageUrl} alt={product.name} loading="lazy" decoding="async" draggable={false} className="w-full h-full object-contain" />
+          <img
+            src={resolveThumbUrl(product.imageUrl)}
+            alt={product.name}
+            loading="lazy"
+            decoding="async"
+            draggable={false}
+            onError={(e) => {
+              // Thumbnail missing (legacy upload) → fall back to the full image.
+              if (e.currentTarget.src !== product.imageUrl) {
+                e.currentTarget.src = product.imageUrl;
+              }
+            }}
+            className="w-full h-full object-contain"
+          />
         ) : (
           <div className="flex items-center justify-center w-full h-full text-muted-foreground"><Package size={20} aria-hidden /></div>
         )}

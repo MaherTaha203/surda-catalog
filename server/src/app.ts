@@ -31,9 +31,11 @@ export function buildApp(): FastifyInstance {
     ignoreTrailingSlash: true,
   });
 
-  // Security headers. CSP is disabled (this is a JSON/image API, not an HTML app)
-  // and Cross-Origin-Resource-Policy is set to cross-origin so the frontend (a
-  // different origin) can load product images served from /uploads.
+  // Security headers. CSP is off: the served SPA shell relies on inline scripts
+  // (framework hydration + SW registration), so any workable policy would need
+  // script-src 'unsafe-inline' — no real protection, but real breakage risk.
+  // Cross-Origin-Resource-Policy is cross-origin so a split-origin frontend can
+  // load product images served from /uploads.
   app.register(helmet, {
     contentSecurityPolicy: false,
     crossOriginResourcePolicy: { policy: 'cross-origin' },

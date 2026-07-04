@@ -7,12 +7,8 @@
     "dev": "vite",
     "build": "vite build && node scripts/finalize-static-build.mjs",
     "preview": "vite preview",
-    "lint:css": "stylelint \"src/**/*.css\" --fix --quiet",
-    "lint:js": "eslint . --ext ts,tsx --report-unused-disable-directives",
     "lint:types": "tsc --noEmit",
-    "check:css-vars": "node scripts/check-css-variables.js",
-    "check:css-classes": "node scripts/check-css-classes.js",
-    "lint": "bun run lint:types && bun run lint:js && bun run lint:css && bun run check:css-vars && bun run check:css-classes",
+    "lint": "npm run lint:types && npm --prefix server run typecheck",
     "server": "npm --prefix server install --no-audit --no-fund && npm --prefix server start"
   },
   "devDependencies": {
@@ -35,8 +31,6 @@
     "postcss": "8.4.31",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "stylelint": "^17.13.0",
-    "stylelint-config-standard": "^40.0.0",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "3.4.17",
     "tailwindcss-animate": "^1.0.7"

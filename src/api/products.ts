@@ -74,14 +74,6 @@ export async function setProductVisibility(id: string, isHidden: number): Promis
   return forDisplay(updated);
 }
 
-export async function setProductOrder(id: string, sortOrder: number): Promise<Product> {
-  const updated = await apiRequest<Product>(
-    `/products/${encodeURIComponent(id)}/order`,
-    { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify({ sortOrder }) },
-  );
-  return forDisplay(updated);
-}
-
 /** Apply several sortOrder changes atomically (single transaction). */
 export async function reorderProducts(
   items: { id: string; sortOrder: number }[],

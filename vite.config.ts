@@ -3,6 +3,11 @@ import { tanstackStart } from '@tanstack/react-start/plugin/vite';
 import viteReact from '@vitejs/plugin-react';
 import path from 'path';
 
+// External Google Fonts @imports (from the self-hosted Tajawal setup and the
+// bundled @blinkdotnew/ui theme sheets) are stripped by a PostCSS plugin — see
+// postcss.config.cjs — which sees every @import-inlined file, unlike a Vite
+// module transform.
+
 export default defineConfig({
   plugins: [
     // TanStack Start — SSR + static prerendering so search engines AND AI crawlers

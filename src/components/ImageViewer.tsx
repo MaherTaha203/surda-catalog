@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ZoomIn, ZoomOut, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 interface ImageViewerProps {
   src: string;
@@ -34,6 +35,9 @@ export function ImageViewer({ src, alt, open, onClose, onNavigate, hasNext, hasP
   const pinchedDuringGesture = useRef(false);
 
   const resetZoom = useCallback(() => setScale(1), []);
+
+  // Tab stays inside the viewer while it is open (close / nav / zoom buttons).
+  useFocusTrap(containerRef, open);
 
   const navigate = useCallback(
     (direction: 1 | -1) => {

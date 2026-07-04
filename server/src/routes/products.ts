@@ -31,15 +31,20 @@ interface ProductIdParams {
 }
 
 // ── Coercion helpers (no SQL — just input normalization) ─────────────────────
+// Every numeric product field in this domain (quantities, prices, sortOrder,
+// isHidden) is non-negative, so coercion clamps at 0 — a raw API call can't
+// store a negative price the UI never allows.
 const toStr = (v: unknown): string => (v === null || v === undefined ? '' : String(v));
 const toInt = (v: unknown): number => {
   const n = Number(v);
-  return Number.isFinite(n) ? Math.trunc(n) : 0;
+  return Number.isFinite(n) ? Math.max(0, Math.trunc(n)) : 0;
 };
 const toNum = (v: unknown): number => {
   const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
+  return Number.isFinite(n) ? Math.max(0, n) : 0;
 };
+/** Normalize any truthy/falsy input to the 0|1 the schema stores. */
+const toFlag = (v: unknown): number => (toInt(v) ? 1 : 0);
 
 /** Build a partial update from only the fields present in the body. */
 function buildPatch(body: Record<string, unknown>): ProductUpdate {
@@ -54,7 +59,7 @@ function buildPatch(body: Record<string, unknown>): ProductUpdate {
   if ('bonusQuantity' in body) patch.bonusQuantity = toInt(body.bonusQuantity);
   if ('imageUrl' in body) patch.imageUrl = toStr(body.imageUrl);
   if ('category' in body) patch.category = toStr(body.category);
-  if ('isHidden' in body) patch.isHidden = toInt(body.isHidden);
+  if ('isHidden' in body) patch.isHidden = toFlag(body.isHidden);
   if ('sortOrder' in body) patch.sortOrder = toInt(body.sortOrder);
   return patch;
 }
@@ -118,7 +123,7 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
       bonusQuantity: toInt(body.bonusQuantity),
       imageUrl: toStr(body.imageUrl),
       category,
-      isHidden: toInt(body.isHidden),
+      isHidden: toFlag(body.isHidden),
       sortOrder: toInt(body.sortOrder),
     };
     try {

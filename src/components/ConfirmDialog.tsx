@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle } from 'lucide-react';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -29,6 +30,10 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  // Tab stays inside the dialog while it is open.
+  const cardRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(cardRef, open);
+
   // Escape cancels. Registered only while open, after any parent modal's own
   // Escape handler — parents guard on `open` to let the dialog win.
   useEffect(() => {
@@ -53,6 +58,7 @@ export function ConfirmDialog({
           dir="rtl"
         >
           <motion.div
+            ref={cardRef}
             initial={{ scale: 0.95, opacity: 0, y: 8 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.95, opacity: 0, y: 8 }}

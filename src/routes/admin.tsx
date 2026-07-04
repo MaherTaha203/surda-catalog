@@ -40,7 +40,8 @@ function AdminPage() {
   // sessionStorage (unavailable on the server).
   const unlocked = isClient && isPinUnlocked() && isAdminUnlocked();
 
-  useEffect(() => { if (isClient && !unlocked) navigate({ to: '/' }); }, [unlocked, navigate, isClient]);
+  // `replace` keeps the guarded page out of history — Back must not return to it.
+  useEffect(() => { if (isClient && !unlocked) navigate({ to: '/', replace: true }); }, [unlocked, navigate, isClient]);
 
   const { data: products = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['admin-products'],
