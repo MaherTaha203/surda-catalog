@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { readLockout, registerFailure, clearLockout, remainingMs } from '@/lib/pin-lockout';
 
 interface PinPadProps {
   title: string;
@@ -10,6 +11,12 @@ interface PinPadProps {
   onBack?: () => void;
   /** Hosts with their own close affordance (the dialog's ×) hide the text button. */
   hideBackButton?: boolean;
+  /**
+   * Enables persistent brute-force throttling under this storage key. After a
+   * few wrong attempts the pad locks for a growing cooldown (survives reload).
+   * Omit to disable throttling entirely.
+   */
+  lockoutKey?: string;
 }
 
 /**
@@ -17,23 +24,59 @@ interface PinPadProps {
  * Backspace, Escape→onBack). Embedded by the admin PIN dialog; wrap it
  * yourself for a full-page layout.
  */
-export function PinPad({ title, subtitle, correctPin, onSuccess, onBack, hideBackButton }: PinPadProps) {
+export function PinPad({ title, subtitle, correctPin, onSuccess, onBack, hideBackButton, lockoutKey }: PinPadProps) {
   const [pin, setPin] = useState('');
   const [error, setError] = useState(false);
   const [shakeKey, setShakeKey] = useState(0);
+  // Epoch ms until which entry is blocked (0 = open). Seeded from storage so a
+  // reload can't escape an active cooldown.
+  const [lockUntil, setLockUntil] = useState(0);
+  // Ticks every second while locked so the countdown label updates + auto-unlocks.
+  const [nowTs, setNowTs] = useState(() => Date.now());
+
+  // Restore any persisted lock on mount / when the key changes.
+  useEffect(() => {
+    if (!lockoutKey) return;
+    const state = readLockout(lockoutKey);
+    setLockUntil(state.lockUntil);
+    setNowTs(Date.now());
+  }, [lockoutKey]);
+
+  const lockedMs = remainingMs({ fails: 0, lockUntil }, nowTs);
+  const locked = lockedMs > 0;
+  const lockSeconds = Math.ceil(lockedMs / 1000);
+
+  // While locked, tick each second and release exactly when the cooldown ends.
+  useEffect(() => {
+    if (!locked) return;
+    const id = setInterval(() => setNowTs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [locked]);
 
   const handleDigit = useCallback(
     (digit: string) => {
-      if (pin.length >= 4) return;
+      if (locked || pin.length >= 4) return;
       setError(false);
       const next = pin + digit;
       setPin(next);
       if (next.length === 4) {
         if (next === correctPin) {
+          if (lockoutKey) clearLockout(lockoutKey);
           setTimeout(onSuccess, 150);
         } else {
           setError(true);
           setShakeKey((k) => k + 1);
+          // Record the failure and lock the pad if the threshold is reached.
+          if (lockoutKey) {
+            const now = Date.now();
+            const state = registerFailure(lockoutKey, now);
+            if (state.lockUntil > now) {
+              setNowTs(now);
+              setLockUntil(state.lockUntil);
+              setPin('');
+              return;
+            }
+          }
           setTimeout(() => {
             setPin('');
             setError(false);
@@ -41,27 +84,30 @@ export function PinPad({ title, subtitle, correctPin, onSuccess, onBack, hideBac
         }
       }
     },
-    [pin, correctPin, onSuccess]
+    [locked, pin, correctPin, onSuccess, lockoutKey]
   );
 
   // Backspace icon = remove the last digit (its previous clear-all behavior
   // contradicted the icon and standard PIN-pad expectations).
   const handleBackspace = useCallback(() => {
+    if (locked) return;
     setPin((p) => p.slice(0, -1));
     setError(false);
-  }, []);
+  }, [locked]);
 
   // Physical keyboard support — the admin entry is desktop-first, so digits,
-  // Backspace, and Escape must work without the mouse.
+  // Backspace, and Escape must work without the mouse. (Escape still closes even
+  // while locked, so the user isn't trapped in the dialog during a cooldown.)
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (/^[0-9]$/.test(e.key)) handleDigit(e.key);
+      if (e.key === 'Escape' && onBack) onBack();
+      else if (locked) return;
+      else if (/^[0-9]$/.test(e.key)) handleDigit(e.key);
       else if (e.key === 'Backspace') handleBackspace();
-      else if (e.key === 'Escape' && onBack) onBack();
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [handleDigit, handleBackspace, onBack]);
+  }, [handleDigit, handleBackspace, onBack, locked]);
 
   const digits = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'delete'];
 
@@ -95,14 +141,20 @@ export function PinPad({ title, subtitle, correctPin, onSuccess, onBack, hideBac
         ))}
       </motion.div>
 
-      {error && (
-        <p className="text-center text-sm text-destructive mb-4 animate-fade-in">
-          رمز الدخول غير صحيح
+      {locked ? (
+        <p className="text-center text-sm text-destructive mb-4 animate-fade-in" role="alert">
+          محاولات كثيرة. حاول مرة أخرى بعد {lockSeconds} ثانية
         </p>
+      ) : (
+        error && (
+          <p className="text-center text-sm text-destructive mb-4 animate-fade-in">
+            رمز الدخول غير صحيح
+          </p>
+        )
       )}
 
       {/* Number pad */}
-      <div className="grid grid-cols-3 gap-3 max-w-[280px] mx-auto">
+      <div className={cn('grid grid-cols-3 gap-3 max-w-[280px] mx-auto', locked && 'opacity-40 pointer-events-none')}>
         {digits.map((d) => {
           if (d === '') {
             return <div key="empty" />;
@@ -113,7 +165,7 @@ export function PinPad({ title, subtitle, correctPin, onSuccess, onBack, hideBac
                 key="delete"
                 type="button"
                 onClick={handleBackspace}
-                disabled={pin.length === 0}
+                disabled={locked || pin.length === 0}
                 aria-label="حذف آخر رقم"
                 className="flex items-center justify-center h-14 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30"
               >
