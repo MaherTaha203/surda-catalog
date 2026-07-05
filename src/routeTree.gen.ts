@@ -13,6 +13,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as PreferencesRouteImport } from './routes/preferences'
 import { Route as NotificationsHistoryRouteImport } from './routes/notifications-history'
 import { Route as NotificationsRouteImport } from './routes/notifications'
+import { Route as ImportImagesRouteImport } from './routes/import-images'
 import { Route as CatalogRouteImport } from './routes/catalog'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
@@ -36,6 +37,11 @@ const NotificationsHistoryRoute = NotificationsHistoryRouteImport.update({
 const NotificationsRoute = NotificationsRouteImport.update({
   id: '/notifications',
   path: '/notifications',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ImportImagesRoute = ImportImagesRouteImport.update({
+  id: '/import-images',
+  path: '/import-images',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CatalogRoute = CatalogRouteImport.update({
@@ -63,6 +69,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/catalog': typeof CatalogRoute
+  '/import-images': typeof ImportImagesRoute
   '/notifications': typeof NotificationsRoute
   '/notifications-history': typeof NotificationsHistoryRoute
   '/preferences': typeof PreferencesRoute
@@ -73,6 +80,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/catalog': typeof CatalogRoute
+  '/import-images': typeof ImportImagesRoute
   '/notifications': typeof NotificationsRoute
   '/notifications-history': typeof NotificationsHistoryRoute
   '/preferences': typeof PreferencesRoute
@@ -84,6 +92,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/catalog': typeof CatalogRoute
+  '/import-images': typeof ImportImagesRoute
   '/notifications': typeof NotificationsRoute
   '/notifications-history': typeof NotificationsHistoryRoute
   '/preferences': typeof PreferencesRoute
@@ -96,6 +105,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/catalog'
+    | '/import-images'
     | '/notifications'
     | '/notifications-history'
     | '/preferences'
@@ -106,6 +116,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/catalog'
+    | '/import-images'
     | '/notifications'
     | '/notifications-history'
     | '/preferences'
@@ -116,6 +127,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/catalog'
+    | '/import-images'
     | '/notifications'
     | '/notifications-history'
     | '/preferences'
@@ -127,6 +139,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   CatalogRoute: typeof CatalogRoute
+  ImportImagesRoute: typeof ImportImagesRoute
   NotificationsRoute: typeof NotificationsRoute
   NotificationsHistoryRoute: typeof NotificationsHistoryRoute
   PreferencesRoute: typeof PreferencesRoute
@@ -164,6 +177,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NotificationsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/import-images': {
+      id: '/import-images'
+      path: '/import-images'
+      fullPath: '/import-images'
+      preLoaderRoute: typeof ImportImagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/catalog': {
       id: '/catalog'
       path: '/catalog'
@@ -199,6 +219,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   CatalogRoute: CatalogRoute,
+  ImportImagesRoute: ImportImagesRoute,
   NotificationsRoute: NotificationsRoute,
   NotificationsHistoryRoute: NotificationsHistoryRoute,
   PreferencesRoute: PreferencesRoute,
