@@ -12,6 +12,7 @@ import { isAdminUnlocked, isPinUnlocked } from '@/lib/storage';
 import { useIsClient } from '@/hooks/useIsClient';
 import { AdminNotificationForm } from './AdminNotificationForm';
 import { ManagerNotificationList } from './ManagerNotificationList';
+import { NotificationMaintenance } from './NotificationMaintenance';
 import { useAllNotifications, useDevices } from './hooks';
 import { makeDeviceNameResolver, filterNotifications } from './filters';
 import { NOTIFICATION_STATUSES, STATUS_LABELS, type Notification, type NotificationStatus } from './types';
@@ -39,7 +40,9 @@ export function AdminNotificationsPage() {
   const { edit: editId } = useSearch({ strict: false }) as { edit?: string };
   useEffect(() => {
     if (!editId || editing) return;
-    const target = notifications.find((n) => n.id === editId && n.status === 'new');
+    const target = notifications.find(
+      (n) => n.id === editId && (n.status === 'new' || n.status === 'read'),
+    );
     if (target) setEditing(target);
   }, [editId, notifications, editing]);
 
@@ -91,6 +94,13 @@ export function AdminNotificationsPage() {
             onCancelEdit={() => setEditing(null)}
           />
         </div>
+
+        <NotificationMaintenance
+          enabled={unlocked}
+          completedCount={notifications.filter((n) => n.status === 'completed').length}
+          cancelledCount={notifications.filter((n) => n.status === 'cancelled').length}
+          cleanableCount={notifications.filter((n) => n.status !== 'new').length}
+        />
 
         <section>
           <div className="flex items-center justify-between gap-2 mb-2">

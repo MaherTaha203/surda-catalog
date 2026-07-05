@@ -3,7 +3,7 @@
  *
  * Manager create / edit form. Recipient is a device dropdown (spec §2 — no
  * typing). Statement notifications carry ONE uploaded attachment (spec §1).
- * Edit reuses this form (allowed only while status = new; enforced server-side).
+ * Edit reuses this form (allowed while status = new or read; enforced server-side).
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';

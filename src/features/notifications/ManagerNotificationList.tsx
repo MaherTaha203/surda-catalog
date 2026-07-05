@@ -1,14 +1,14 @@
 /**
  * EXPERIMENTAL FEATURE — Notification Center (reversible). V2.
  *
- * Manager dashboard rows (spec §20): Type, Recipient, Status, Created, Read,
- * Completed, Actions. Actions depend on status (spec §3):
- *   new       → Edit + Delete
- *   read      → Cancel
- *   completed → read-only
- *   cancelled → read-only
- * All destructive actions use the app ConfirmDialog — never browser confirm()
- * (spec §19).
+ * Manager dashboard rows: Type, Recipient, Status, Created, Read, Completed,
+ * Actions. Actions depend on the lifecycle status:
+ *   new       → Edit + Cancel + Delete
+ *   read      → Edit + Cancel + Delete
+ *   completed → Delete
+ *   cancelled → Delete
+ * Delete is available at every stage and removes the record + attachment.
+ * All destructive actions use the app ConfirmDialog — never browser confirm().
  */
 import { useState } from 'react';
 import { toast } from '@blinkdotnew/ui';
@@ -106,9 +106,9 @@ export function ManagerNotificationList({ notifications, deviceName, onEdit, emp
                     {n.customer_id && <span>العميل: {n.customer_id}</span>}
                   </div>
 
-                  {/* Actions (spec §3) */}
+                  {/* Actions — edit/cancel while new|read, delete at every stage */}
                   <div className="mt-2 flex items-center gap-1.5">
-                    {n.status === 'new' && (
+                    {(n.status === 'new' || n.status === 'read') && (
                       <>
                         <button
                           type="button"
@@ -119,25 +119,20 @@ export function ManagerNotificationList({ notifications, deviceName, onEdit, emp
                         </button>
                         <button
                           type="button"
-                          onClick={() => setPending({ kind: 'delete', n })}
-                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-destructive/10 text-destructive text-xs font-medium hover:bg-destructive/20 transition-colors"
+                          onClick={() => setPending({ kind: 'cancel', n })}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-muted text-foreground text-xs font-medium hover:bg-muted/70 transition-colors"
                         >
-                          <Trash2 size={13} aria-hidden /> حذف
+                          <Ban size={13} aria-hidden /> إلغاء
                         </button>
                       </>
                     )}
-                    {n.status === 'read' && (
-                      <button
-                        type="button"
-                        onClick={() => setPending({ kind: 'cancel', n })}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-muted text-foreground text-xs font-medium hover:bg-muted/70 transition-colors"
-                      >
-                        <Ban size={13} aria-hidden /> إلغاء
-                      </button>
-                    )}
-                    {(n.status === 'completed' || n.status === 'cancelled') && (
-                      <span className="text-[11px] text-muted-foreground">للقراءة فقط</span>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => setPending({ kind: 'delete', n })}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-destructive/10 text-destructive text-xs font-medium hover:bg-destructive/20 transition-colors"
+                    >
+                      <Trash2 size={13} aria-hidden /> حذف
+                    </button>
                   </div>
                 </div>
               </div>
@@ -149,7 +144,7 @@ export function ManagerNotificationList({ notifications, deviceName, onEdit, emp
       <ConfirmDialog
         open={pending?.kind === 'delete'}
         title="حذف الإشعار"
-        description="سيُحذف هذا الإشعار نهائياً. لا يمكن التراجع."
+        description="سيُحذف هذا الإشعار نهائياً مع مرفقاته من جميع الأجهزة. لا يمكن التراجع."
         confirmLabel="حذف"
         destructive
         onConfirm={confirmAction}
@@ -168,7 +163,7 @@ export function ManagerNotificationList({ notifications, deviceName, onEdit, emp
       <ConfirmDialog
         open={pending?.kind === 'edit'}
         title="تعديل الإشعار"
-        description="يمكن التعديل قبل قراءة المندوب فقط. هل تريد المتابعة؟"
+        description="يمكن التعديل قبل تنفيذ المندوب. هل تريد المتابعة؟"
         confirmLabel="تعديل"
         onConfirm={confirmAction}
         onCancel={() => setPending(null)}
