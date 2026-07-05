@@ -135,7 +135,7 @@ export function NotificationMaintenance({ enabled, completedCount, cancelledCoun
           type="button"
           disabled={busy || completedCount === 0}
           onClick={() => setPending('completed')}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-100 text-green-700 text-xs font-medium disabled:opacity-40 hover:bg-green-200 transition-colors dark:bg-green-500/15 dark:text-green-300"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-100 text-green-700 text-xs font-medium disabled:opacity-40 hover:bg-green-200 transition-colors"
         >
           <Trash2 size={14} aria-hidden /> حذف المنفذة ({completedCount})
         </button>

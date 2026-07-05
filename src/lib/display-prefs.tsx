@@ -13,7 +13,7 @@ import type { CatalogSettings } from '@/api/settings';
 
 export type GridDensity = 'small' | 'medium' | 'standard' | 'comfortable' | 'large';
 export type FontScale = 'small' | 'standard' | 'large';
-export type CatalogTheme = 'pure-white' | 'warm-white' | 'light-gray';
+export type CatalogTheme = 'pure-white' | 'warm-white' | 'light-gray' | 'night';
 
 export interface DisplayPrefs {
   density: GridDensity;
@@ -61,6 +61,8 @@ export const THEME_OPTIONS: { value: CatalogTheme; label: string; swatch: string
   { value: 'pure-white', label: 'أبيض', swatch: 'hsl(0 0% 100%)' },
   { value: 'warm-white', label: 'عاجي', swatch: 'hsl(40 20% 97%)' },
   { value: 'light-gray', label: 'رمادي فاتح', swatch: 'hsl(220 12% 93%)' },
+  // Comfortable night: a soft warm slate (~20% lightness), never pure black.
+  { value: 'night', label: 'ليلي', swatch: 'hsl(220 16% 20%)' },
 ];
 
 /** hsl triplets matching index.css `--background` (warm-white is the stock look). */
@@ -68,7 +70,11 @@ const THEME_BACKGROUND: Record<CatalogTheme, string> = {
   'pure-white': '0 0% 100%',
   'warm-white': '40 20% 97%',
   'light-gray': '220 12% 93%',
+  night: '220 16% 20%',
 };
+
+/** The night theme is the only dark option; it flips the full token set (index.css). */
+export const DARK_THEMES: ReadonlySet<CatalogTheme> = new Set<CatalogTheme>(['night']);
 
 /**
  * Grid classes per density — full literals so Tailwind's scanner sees them.
@@ -200,9 +206,12 @@ export function DisplayPrefsProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  // Apply the background theme app-wide, instantly.
+  // Apply the background theme app-wide, instantly. Light themes only swap the
+  // background; the night theme also toggles `theme-night`, which flips the full
+  // palette (foreground/card/border/…) defined in index.css so text stays legible.
   useEffect(() => {
     document.documentElement.style.setProperty('--background', THEME_BACKGROUND[prefs.theme]);
+    document.documentElement.classList.toggle('theme-night', DARK_THEMES.has(prefs.theme));
   }, [prefs.theme]);
 
   return (
