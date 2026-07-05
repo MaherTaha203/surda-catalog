@@ -1,28 +1,22 @@
 /**
- * EXPERIMENTAL FEATURE — Notification Center (reversible).
+ * EXPERIMENTAL FEATURE — Notification Center (reversible). V2.
  *
- * Manager's notifications screen (reached from the new "الإشعارات" button in the
- * admin panel). Left/top: create form. Below: every notification with its live
- * status (جديد / تمت القراءة / تم التنفيذ), polled every 30s.
- *
- * PIN-gated exactly like the existing admin page — no auth code is duplicated;
- * it reuses the same storage helpers.
+ * Manager dashboard (spec §20). Create / edit a notification, then see every
+ * notification with live status and read/completion tracking, filtered by status.
+ * A link opens the full history page (spec §8). PIN-gated like the admin panel.
  */
-import { useEffect } from 'react';
-import { useNavigate, Link } from '@tanstack/react-router';
-import { ArrowRight, Bell } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useSearch, Link } from '@tanstack/react-router';
+import { ArrowRight, Bell, History } from 'lucide-react';
 import { isAdminUnlocked, isPinUnlocked } from '@/lib/storage';
 import { useIsClient } from '@/hooks/useIsClient';
 import { AdminNotificationForm } from './AdminNotificationForm';
-import { useAllNotifications } from './hooks';
-import {
-  TYPE_ICONS,
-  TYPE_LABELS,
-  TYPE_TINT,
-  STATUS_LABELS,
-  STATUS_TINT,
-  formatRelativeTime,
-} from './types';
+import { ManagerNotificationList } from './ManagerNotificationList';
+import { useAllNotifications, useDevices } from './hooks';
+import { makeDeviceNameResolver, filterNotifications } from './filters';
+import { NOTIFICATION_STATUSES, STATUS_LABELS, type Notification, type NotificationStatus } from './types';
+
+const STATUS_FILTERS: ('all' | NotificationStatus)[] = ['all', ...NOTIFICATION_STATUSES];
 
 export function AdminNotificationsPage() {
   const navigate = useNavigate();
@@ -33,13 +27,36 @@ export function AdminNotificationsPage() {
     if (isClient && !unlocked) navigate({ to: '/', replace: true });
   }, [unlocked, navigate, isClient]);
 
-  const { data: notifications = [], isLoading, refetch } = useAllNotifications(unlocked);
+  const { data: notifications = [], isLoading } = useAllNotifications(unlocked);
+  const { data: devices = [] } = useDevices(unlocked);
+  const deviceName = useMemo(() => makeDeviceNameResolver(devices), [devices]);
+
+  const [editing, setEditing] = useState<Notification | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'all' | NotificationStatus>('all');
+  const formRef = useRef<HTMLDivElement>(null);
+
+  // Deep-link from the history page (?edit=<id>) enters edit mode once loaded.
+  const { edit: editId } = useSearch({ strict: false }) as { edit?: string };
+  useEffect(() => {
+    if (!editId || editing) return;
+    const target = notifications.find((n) => n.id === editId && n.status === 'new');
+    if (target) setEditing(target);
+  }, [editId, notifications, editing]);
+
+  const filtered = useMemo(
+    () => filterNotifications(notifications, { status: statusFilter }, deviceName),
+    [notifications, statusFilter, deviceName],
+  );
+
+  const startEdit = (n: Notification) => {
+    setEditing(n);
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   if (!unlocked) return null;
 
   return (
     <div className="min-h-dvh bg-background" dir="rtl">
-      {/* Header */}
       <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-md border-b border-border">
         <div className="max-w-3xl mx-auto px-3 sm:px-4 py-3 flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
@@ -56,66 +73,61 @@ export function AdminNotificationsPage() {
               الإشعارات
             </h1>
           </div>
+          <Link
+            to="/notifications-history"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-muted text-foreground text-sm font-medium hover:bg-muted/70 transition-colors"
+          >
+            <History size={16} aria-hidden />
+            <span className="hidden sm:inline">السجل</span>
+          </Link>
         </div>
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-4 space-y-5">
-        <AdminNotificationForm onCreated={() => refetch()} />
+        <div ref={formRef}>
+          <AdminNotificationForm
+            editing={editing}
+            onDone={() => setEditing(null)}
+            onCancelEdit={() => setEditing(null)}
+          />
+        </div>
 
-        {/* Sent notifications + statuses */}
         <section>
-          <h2 className="text-sm font-bold text-foreground mb-2">الإشعارات المُرسلة</h2>
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <h2 className="text-sm font-bold text-foreground">الإشعارات المُرسلة</h2>
+          </div>
+
+          {/* Status filter chips */}
+          <div className="flex gap-1.5 overflow-x-auto scrollbar-none pb-2">
+            {STATUS_FILTERS.map((s) => {
+              const count = s === 'all' ? notifications.length : notifications.filter((n) => n.status === s).length;
+              return (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setStatusFilter(s)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
+                    statusFilter === s ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground hover:bg-muted/70'
+                  }`}
+                >
+                  {s === 'all' ? 'الكل' : STATUS_LABELS[s]}
+                  <span className={`px-1.5 rounded-full ${statusFilter === s ? 'bg-primary-foreground/20' : 'bg-background'}`}>{count}</span>
+                </button>
+              );
+            })}
+          </div>
+
           {isLoading ? (
             <div className="space-y-2 animate-pulse" role="status" aria-label="جارٍ التحميل">
-              {[0, 1, 2].map((i) => (
-                <div key={i} className="h-16 rounded-xl bg-muted" />
-              ))}
-            </div>
-          ) : notifications.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Bell size={40} className="text-muted-foreground/30 mb-3" strokeWidth={1} aria-hidden />
-              <p className="text-sm text-muted-foreground">لم يتم إرسال أي إشعار بعد</p>
+              {[0, 1, 2].map((i) => <div key={i} className="h-24 rounded-xl bg-muted" />)}
             </div>
           ) : (
-            <ul className="space-y-2">
-              {notifications.map((n) => {
-                const Icon = TYPE_ICONS[n.type];
-                return (
-                  <li
-                    key={n.id}
-                    className="flex items-start gap-3 px-3 py-3 rounded-xl border border-border bg-card"
-                  >
-                    <span className={`flex items-center justify-center w-9 h-9 rounded-xl shrink-0 ${TYPE_TINT[n.type]}`}>
-                      <Icon size={18} aria-hidden />
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="font-bold text-sm text-foreground truncate">{n.title}</p>
-                        <span className={`shrink-0 px-2 py-0.5 rounded-full text-[11px] font-medium ${STATUS_TINT[n.status]}`}>
-                          {STATUS_LABELS[n.status]}
-                        </span>
-                      </div>
-                      {n.message && (
-                        <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{n.message}</p>
-                      )}
-                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
-                        <span>{TYPE_LABELS[n.type]}</span>
-                        <span aria-hidden>·</span>
-                        <span>إلى: <span className="font-mono" dir="ltr">{n.device_id}</span></span>
-                        <span aria-hidden>·</span>
-                        <span>{formatRelativeTime(n.created_at)}</span>
-                        {n.customer_id && (
-                          <>
-                            <span aria-hidden>·</span>
-                            <span>العميل: {n.customer_id}</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+            <ManagerNotificationList
+              notifications={filtered}
+              deviceName={deviceName}
+              onEdit={startEdit}
+              emptyText={statusFilter === 'all' ? 'لم يتم إرسال أي إشعار بعد' : 'لا توجد إشعارات بهذه الحالة'}
+            />
           )}
         </section>
       </main>

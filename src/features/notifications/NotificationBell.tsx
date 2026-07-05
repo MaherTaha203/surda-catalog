@@ -1,23 +1,25 @@
 /**
- * EXPERIMENTAL FEATURE — Notification Center (reversible).
+ * EXPERIMENTAL FEATURE — Notification Center (reversible). V2.
  *
- * The delegate-facing entry point: a small bell in the catalog header with a
- * red badge for unread ("new") notifications. Tapping it opens a SIDE PANEL
- * (not a new page) listing every notification for this device. Tapping a
- * notification opens its target:
- *   - message / announcement → in-place reader overlay
- *   - statement (كشف حساب)   → in-place statement reader overlay
- *   - product / offer         → navigates to the product page
- * Opening a notification flips it to "read"; the target's action bar can then
- * flip it to "done", after which it drops out of the unread badge count.
+ * Delegate entry point: a small bell + red unread badge in the catalog header.
+ * Tapping opens a SIDE PANEL (spec §9) listing this device's notifications with
+ * icon, title, short description, time, and status badge. Opening one:
+ *   - product / offer → product page (offer shows offer info there)
+ *   - statement        → attachment viewer (PDF / image)
+ *   - message / announcement → in-place reader
+ * Opening flips it to "read"; message/statement/product/offer can then be
+ * completed (announcements are read-only). Polls every 30s.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from '@tanstack/react-router';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, X, ChevronLeft } from 'lucide-react';
+import { Bell, X, ChevronLeft, Settings } from 'lucide-react';
 import { useDeviceNotifications, useMarkRead } from './hooks';
 import { NotificationDetailOverlay } from './NotificationDetailOverlay';
+import { AttachmentViewer } from './AttachmentViewer';
+import { DeviceRegistration } from './DeviceRegistration';
+import { getDeviceId, getDeviceName } from './device';
 import {
   TYPE_ICONS,
   TYPE_LABELS,
@@ -28,42 +30,49 @@ import {
   type Notification,
 } from './types';
 
+/** One-line description for the panel row. */
+function shortDescription(n: Notification): string {
+  if (n.type === 'statement') return n.attachment_type === 'pdf' ? 'مرفق PDF' : 'مرفق صورة';
+  if (n.message) return n.message;
+  return TYPE_LABELS[n.type];
+}
+
 export function NotificationBell() {
   const navigate = useNavigate();
   const { data: notifications = [] } = useDeviceNotifications();
   const markRead = useMarkRead();
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<Notification | null>(null);
+  const [attachment, setAttachment] = useState<Notification | null>(null);
+  const [deviceDialog, setDeviceDialog] = useState(false);
 
   const unreadCount = notifications.filter((n) => n.status === 'new').length;
 
-  const handleOpenNotification = (n: Notification) => {
-    // Opening always marks it read (server ignores if already read/done).
-    if (n.status === 'new') markRead.mutate(n.id);
-    setOpen(false); // close the side panel first — the target opens on a clean view
+  const openPanel = () => {
+    // First use: make the rep name this device so targeting + read tracking work.
+    if (!getDeviceName()) setDeviceDialog(true);
+    setOpen(true);
+  };
 
-    if (n.type === 'product' || n.type === 'offer') {
-      // Product / offer → jump to the product page, tagged so the page shows
-      // the "opened from notification" bar. Nothing else in the product flow
-      // changes when the tag is absent.
-      if (n.product_id) {
-        navigate({
-          to: '/product/$id',
-          params: { id: n.product_id },
-          search: { notif: n.id },
-        });
-        return;
-      }
+  const handleOpenNotification = (n: Notification) => {
+    if (n.status === 'new') markRead.mutate({ id: n.id, deviceId: getDeviceId() });
+    setOpen(false);
+
+    if ((n.type === 'product' || n.type === 'offer') && n.product_id) {
+      navigate({ to: '/product/$id', params: { id: n.product_id }, search: { notif: n.id } });
+      return;
     }
-    // message / statement / announcement (and product/offer without a product) →
-    // in-place reader overlay.
+    if (n.type === 'statement') {
+      setAttachment(n);
+      return;
+    }
     setDetail(n);
   };
 
   const bell = (
     <button
       type="button"
-      onClick={() => setOpen(true)}
+      onClick={openPanel}
       aria-label={unreadCount > 0 ? `الإشعارات (${unreadCount} جديد)` : 'الإشعارات'}
       className="relative p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
     >
@@ -79,8 +88,6 @@ export function NotificationBell() {
     </button>
   );
 
-  // Portal the drawer/overlays to <body> so they escape the header's stacking
-  // context and cover the whole viewport.
   const portalTarget = typeof document !== 'undefined' ? document.body : null;
 
   return (
@@ -111,7 +118,6 @@ export function NotificationBell() {
                   aria-modal="true"
                   aria-label="الإشعارات"
                 >
-                  {/* Panel header */}
                   <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border">
                     <div className="flex items-center gap-2">
                       <Bell size={18} className="text-primary" aria-hidden />
@@ -122,17 +128,26 @@ export function NotificationBell() {
                         </span>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setOpen(false)}
-                      aria-label="إغلاق"
-                      className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                    >
-                      <X size={18} />
-                    </button>
+                    <div className="flex items-center gap-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setDeviceDialog(true)}
+                        aria-label="اسم الجهاز"
+                        className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      >
+                        <Settings size={17} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOpen(false)}
+                        aria-label="إغلاق"
+                        className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
                   </div>
 
-                  {/* List */}
                   <div className="flex-1 overflow-y-auto">
                     {notifications.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-full py-16 text-center px-6">
@@ -153,27 +168,22 @@ export function NotificationBell() {
                                   isNew ? 'bg-primary/[0.03]' : ''
                                 }`}
                               >
-                                <span
-                                  className={`flex items-center justify-center w-9 h-9 rounded-xl shrink-0 ${TYPE_TINT[n.type]}`}
-                                >
+                                <span className={`flex items-center justify-center w-9 h-9 rounded-xl shrink-0 ${TYPE_TINT[n.type]}`}>
                                   <Icon size={18} aria-hidden />
                                 </span>
                                 <span className="flex-1 min-w-0">
                                   <span className="flex items-center gap-2">
-                                    {isNew && (
-                                      <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" aria-hidden />
-                                    )}
-                                    <span className="font-bold text-sm text-foreground truncate">
-                                      {n.title}
-                                    </span>
+                                    {isNew && <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" aria-hidden />}
+                                    <span className="font-bold text-sm text-foreground truncate">{n.title}</span>
                                   </span>
-                                  <span className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+                                  <span className="block mt-0.5 text-xs text-muted-foreground truncate">
+                                    {shortDescription(n)}
+                                  </span>
+                                  <span className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
                                     <span>{TYPE_LABELS[n.type]}</span>
                                     <span aria-hidden>·</span>
                                     <span>{formatRelativeTime(n.created_at)}</span>
-                                    <span
-                                      className={`px-1.5 py-0.5 rounded-full font-medium ${STATUS_TINT[n.status]}`}
-                                    >
+                                    <span className={`px-1.5 py-0.5 rounded-full font-medium ${STATUS_TINT[n.status]}`}>
                                       {STATUS_LABELS[n.status]}
                                     </span>
                                   </span>
@@ -197,15 +207,20 @@ export function NotificationBell() {
         createPortal(
           <AnimatePresence>
             {detail && (
-              <NotificationDetailOverlay
-                key={detail.id}
-                notification={detail}
-                onClose={() => setDetail(null)}
-              />
+              <NotificationDetailOverlay key={detail.id} notification={detail} onClose={() => setDetail(null)} />
+            )}
+            {attachment && (
+              <AttachmentViewer key={attachment.id} notification={attachment} onClose={() => setAttachment(null)} />
             )}
           </AnimatePresence>,
           portalTarget,
         )}
+
+      <DeviceRegistration
+        open={deviceDialog}
+        requireName={!getDeviceName()}
+        onClose={() => setDeviceDialog(false)}
+      />
     </>
   );
 }

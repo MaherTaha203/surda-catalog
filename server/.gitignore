@@ -18,6 +18,9 @@ uploads/products/*
 !uploads/products/.gitkeep
 uploads/thumbs/*
 !uploads/thumbs/.gitkeep
+# [notifications-feature] EXPERIMENTAL — notification statement attachments.
+uploads/attachments/*
+!uploads/attachments/.gitkeep
 
 # Logs / env
 *.log

@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as PreferencesRouteImport } from './routes/preferences'
+import { Route as NotificationsHistoryRouteImport } from './routes/notifications-history'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as CatalogRouteImport } from './routes/catalog'
 import { Route as AdminRouteImport } from './routes/admin'
@@ -25,6 +26,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const PreferencesRoute = PreferencesRouteImport.update({
   id: '/preferences',
   path: '/preferences',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotificationsHistoryRoute = NotificationsHistoryRouteImport.update({
+  id: '/notifications-history',
+  path: '/notifications-history',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NotificationsRoute = NotificationsRouteImport.update({
@@ -58,6 +64,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/catalog': typeof CatalogRoute
   '/notifications': typeof NotificationsRoute
+  '/notifications-history': typeof NotificationsHistoryRoute
   '/preferences': typeof PreferencesRoute
   '/settings': typeof SettingsRoute
   '/product/$id': typeof ProductIdRoute
@@ -67,6 +74,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/catalog': typeof CatalogRoute
   '/notifications': typeof NotificationsRoute
+  '/notifications-history': typeof NotificationsHistoryRoute
   '/preferences': typeof PreferencesRoute
   '/settings': typeof SettingsRoute
   '/product/$id': typeof ProductIdRoute
@@ -77,6 +85,7 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/catalog': typeof CatalogRoute
   '/notifications': typeof NotificationsRoute
+  '/notifications-history': typeof NotificationsHistoryRoute
   '/preferences': typeof PreferencesRoute
   '/settings': typeof SettingsRoute
   '/product/$id': typeof ProductIdRoute
@@ -88,6 +97,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/catalog'
     | '/notifications'
+    | '/notifications-history'
     | '/preferences'
     | '/settings'
     | '/product/$id'
@@ -97,6 +107,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/catalog'
     | '/notifications'
+    | '/notifications-history'
     | '/preferences'
     | '/settings'
     | '/product/$id'
@@ -106,6 +117,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/catalog'
     | '/notifications'
+    | '/notifications-history'
     | '/preferences'
     | '/settings'
     | '/product/$id'
@@ -116,6 +128,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   CatalogRoute: typeof CatalogRoute
   NotificationsRoute: typeof NotificationsRoute
+  NotificationsHistoryRoute: typeof NotificationsHistoryRoute
   PreferencesRoute: typeof PreferencesRoute
   SettingsRoute: typeof SettingsRoute
   ProductIdRoute: typeof ProductIdRoute
@@ -135,6 +148,13 @@ declare module '@tanstack/react-router' {
       path: '/preferences'
       fullPath: '/preferences'
       preLoaderRoute: typeof PreferencesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notifications-history': {
+      id: '/notifications-history'
+      path: '/notifications-history'
+      fullPath: '/notifications-history'
+      preLoaderRoute: typeof NotificationsHistoryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/notifications': {
@@ -180,6 +200,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   CatalogRoute: CatalogRoute,
   NotificationsRoute: NotificationsRoute,
+  NotificationsHistoryRoute: NotificationsHistoryRoute,
   PreferencesRoute: PreferencesRoute,
   SettingsRoute: SettingsRoute,
   ProductIdRoute: ProductIdRoute,
