@@ -1,21 +1,14 @@
 /**
- * EXPERIMENTAL FEATURE — Notification Center (reversible).
+ * EXPERIMENTAL FEATURE — Notification Center (reversible). V2.
  *
- * Full-screen reader for notifications that open "in place" rather than
- * navigating away — message, announcement, and account statement (كشف حساب).
- * The account statement is rendered from the notification's own fields (no
- * customers/statements table is added — the spec allows only `notifications`).
+ * In-place reader for notifications that don't navigate away — Message (spec §14,
+ * rep can complete) and Announcement (spec §15, read-only). Statement uses the
+ * AttachmentViewer; Product/Offer navigate to the product page.
  */
 import { motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { NotificationSourceBar } from './NotificationSourceBar';
-import {
-  TYPE_ICONS,
-  TYPE_LABELS,
-  TYPE_TINT,
-  formatRelativeTime,
-  type Notification,
-} from './types';
+import { TYPE_ICONS, TYPE_LABELS, TYPE_TINT, formatRelativeTime, type Notification } from './types';
 
 interface Props {
   notification: Notification;
@@ -24,7 +17,6 @@ interface Props {
 
 export function NotificationDetailOverlay({ notification, onClose }: Props) {
   const Icon = TYPE_ICONS[notification.type];
-  const isStatement = notification.type === 'statement';
 
   return (
     <motion.div
@@ -37,7 +29,6 @@ export function NotificationDetailOverlay({ notification, onClose }: Props) {
       aria-modal="true"
       aria-label={notification.title}
     >
-      {/* Header */}
       <div className="sticky top-0 z-10 bg-background/90 backdrop-blur-md border-b border-border">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
@@ -61,34 +52,15 @@ export function NotificationDetailOverlay({ notification, onClose }: Props) {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
-        {/* Opened-from-notification bar with the "تم التنفيذ" action */}
-        <NotificationSourceBar
-          notifId={notification.id}
-          alreadyDone={notification.status === 'done'}
-        />
+        <NotificationSourceBar notification={notification} />
 
-        <p className="text-xs text-muted-foreground">
-          {formatRelativeTime(notification.created_at)}
-        </p>
+        <p className="text-xs text-muted-foreground">{formatRelativeTime(notification.created_at)}</p>
 
-        {isStatement ? (
-          <div className="rounded-2xl border border-border bg-card overflow-hidden">
-            <div className="px-4 py-3 border-b border-border bg-muted/40">
-              <h3 className="text-base font-bold text-foreground">كشف حساب</h3>
-            </div>
-            <div className="px-4 py-4">
-              <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">
-                {notification.message || 'لا يوجد تفاصيل في هذا الكشف.'}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-border bg-card px-4 py-4">
-            <p className="text-base text-foreground leading-relaxed whitespace-pre-line">
-              {notification.message || 'لا يوجد نص لهذه الرسالة.'}
-            </p>
-          </div>
-        )}
+        <div className="rounded-2xl border border-border bg-card px-4 py-4">
+          <p className="text-base text-foreground leading-relaxed whitespace-pre-line">
+            {notification.message || 'لا يوجد نص لهذا الإشعار.'}
+          </p>
+        </div>
       </div>
     </motion.div>
   );

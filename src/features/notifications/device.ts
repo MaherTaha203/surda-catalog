@@ -1,27 +1,40 @@
 /**
- * EXPERIMENTAL FEATURE — Notification Center (reversible).
+ * EXPERIMENTAL FEATURE — Notification Center (reversible). V2.
  *
- * Each delegate's browser gets one stable device id (localStorage), so the
- * manager can address notifications to a specific device — or broadcast to
- * every delegate with the reserved id 'all'. No devices table is added; the
- * spec allows only the single `notifications` table.
+ * Each delegate browser has one stable device_id (localStorage) plus a friendly
+ * device_name the rep sets once (spec §21). The name is stored locally AND
+ * registered on the server so the manager's "send to" dropdown can list devices
+ * and read/completion tracking can show a name (spec §2, §6, §7).
  */
-const DEVICE_KEY = 'sarda_notif_device_id';
+const DEVICE_ID_KEY = 'sarda_notif_device_id';
+const DEVICE_NAME_KEY = 'sarda_notif_device_name';
 
-/** Small readable id: notif-XXXXXX (avoids needing crypto.randomUUID on SSR). */
 function makeDeviceId(): string {
   const rand = Math.random().toString(36).slice(2, 8);
   const stamp = Date.now().toString(36).slice(-4);
   return `dev-${stamp}${rand}`;
 }
 
-/** Get (creating + persisting on first call) this browser's delegate device id. */
+/** Get (creating + persisting on first call) this browser's device_id. */
 export function getDeviceId(): string {
-  if (typeof window === 'undefined') return 'all';
-  let id = localStorage.getItem(DEVICE_KEY);
+  if (typeof window === 'undefined') return ALL_DEVICE_FALLBACK;
+  let id = localStorage.getItem(DEVICE_ID_KEY);
   if (!id) {
     id = makeDeviceId();
-    localStorage.setItem(DEVICE_KEY, id);
+    localStorage.setItem(DEVICE_ID_KEY, id);
   }
   return id;
+}
+
+const ALL_DEVICE_FALLBACK = 'all';
+
+/** The rep's chosen device name, or '' if not set yet. */
+export function getDeviceName(): string {
+  if (typeof window === 'undefined') return '';
+  return localStorage.getItem(DEVICE_NAME_KEY) || '';
+}
+
+export function setDeviceNameLocal(name: string): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(DEVICE_NAME_KEY, name);
 }
