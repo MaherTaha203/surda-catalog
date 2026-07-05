@@ -177,6 +177,60 @@
   --sidebar-ring: 200 50% 55%;
 }
 
+/* ── Night theme (comfortable dark) ──────────────────────────────────────────
+   A 4th catalog background option (display-prefs `theme: 'night'` toggles the
+   `theme-night` class on <html>). Deliberately a soft warm slate (~20% lightness)
+   with off-white — not pure black on white — so it is easy on the eyes for long
+   catalog sessions. Uses the same semantic tokens as light mode, so every
+   token-based surface (bg-card, text-foreground, border-border, …) adapts.
+   ──────────────────────────────────────────────────────────────────────────── */
+:root.theme-night {
+  --background: 220 16% 20%;
+  --foreground: 40 20% 92%;
+  --card: 220 15% 24%;
+  --card-foreground: 40 20% 92%;
+  --popover: 220 15% 24%;
+  --popover-foreground: 40 20% 92%;
+  --primary: 200 55% 62%;
+  --primary-foreground: 220 25% 14%;
+  --secondary: 220 14% 27%;
+  --secondary-foreground: 40 15% 88%;
+  --muted: 220 14% 27%;
+  --muted-foreground: 220 12% 70%;
+  --accent: 38 70% 60%;
+  --accent-foreground: 220 25% 14%;
+  --destructive: 0 65% 62%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 220 12% 31%;
+  --input: 220 12% 31%;
+  --ring: 200 55% 62%;
+
+  --chart-1: 200 55% 62%;
+  --chart-2: 38 70% 60%;
+  --chart-3: 160 45% 58%;
+  --chart-4: 340 45% 64%;
+  --chart-5: 260 40% 66%;
+
+  --sidebar: 220 15% 22%;
+  --sidebar-foreground: 40 20% 92%;
+  --sidebar-primary: 200 55% 62%;
+  --sidebar-primary-foreground: 220 25% 14%;
+  --sidebar-accent: 220 14% 27%;
+  --sidebar-accent-foreground: 40 15% 88%;
+  --sidebar-border: 220 12% 31%;
+  --sidebar-ring: 200 55% 62%;
+
+  /* Soften shadows on dark — large black blurs read as smudges otherwise. */
+  --shadow-2xs: 0px 4px 8px -1px hsl(0 0% 0% / 0.25);
+  --shadow-xs: 0px 4px 8px -1px hsl(0 0% 0% / 0.25);
+  --shadow-sm: 0px 4px 8px -1px hsl(0 0% 0% / 0.35), 0px 1px 2px -2px hsl(0 0% 0% / 0.35);
+  --shadow: 0px 4px 8px -1px hsl(0 0% 0% / 0.35), 0px 1px 2px -2px hsl(0 0% 0% / 0.35);
+  --shadow-md: 0px 4px 8px -1px hsl(0 0% 0% / 0.35), 0px 2px 4px -2px hsl(0 0% 0% / 0.35);
+  --shadow-lg: 0px 4px 8px -1px hsl(0 0% 0% / 0.35), 0px 4px 6px -2px hsl(0 0% 0% / 0.35);
+  --shadow-xl: 0px 4px 8px -1px hsl(0 0% 0% / 0.35), 0px 8px 10px -2px hsl(0 0% 0% / 0.35);
+  --shadow-2xl: 0px 4px 8px -1px hsl(0 0% 0% / 0.45);
+}
+
 /* RTL support */
 html[dir="rtl"] {
   direction: rtl;

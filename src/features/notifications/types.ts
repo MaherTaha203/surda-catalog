@@ -50,6 +50,13 @@ export interface Device {
   updated_at: string;
 }
 
+/** Retention window (days) before completed/cancelled rows auto-delete. 0 = off. */
+export interface NotificationSettings {
+  completed_retention_days: number;
+  cancelled_retention_days: number;
+  updated_at: string;
+}
+
 export const TYPE_LABELS: Record<NotificationType, string> = {
   message: 'رسالة',
   statement: 'كشف حساب',

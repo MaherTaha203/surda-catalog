@@ -17,14 +17,20 @@ import {
   deleteNotification,
   cancelNotification,
   registerDevice,
+  purgeCompletedNotifications,
+  purgeCancelledNotifications,
+  cleanupNotifications,
+  getNotificationSettings,
+  updateNotificationSettings,
   type NotificationInput,
 } from './api';
 import { getDeviceId } from './device';
-import type { Notification, Device } from './types';
+import type { Notification, Device, NotificationSettings } from './types';
 
 export const NOTIFICATIONS_KEY = ['notifications'] as const;
 export const NOTIFICATIONS_ALL_KEY = [...NOTIFICATIONS_KEY, 'all'] as const;
 export const DEVICES_KEY = [...NOTIFICATIONS_KEY, 'devices'] as const;
+export const NOTIFICATION_SETTINGS_KEY = [...NOTIFICATIONS_KEY, 'settings'] as const;
 
 const POLL_MS = 30_000;
 
@@ -167,5 +173,40 @@ export function useRegisterDevice() {
     mutationFn: ({ deviceId, deviceName }: { deviceId: string; deviceName: string }) =>
       registerDevice(deviceId, deviceName),
     onSuccess: () => qc.invalidateQueries({ queryKey: DEVICES_KEY }),
+  });
+}
+
+// ── Bulk maintenance (manager tools) ──────────────────────────────────────────
+
+/** Factory for the three bulk-purge mutations (they only differ by the call). */
+function useBulkPurge(fn: () => Promise<{ deleted: number }>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: () => qc.invalidateQueries({ queryKey: NOTIFICATIONS_KEY }),
+  });
+}
+
+export const usePurgeCompleted = () => useBulkPurge(purgeCompletedNotifications);
+export const usePurgeCancelled = () => useBulkPurge(purgeCancelledNotifications);
+export const useCleanupNotifications = () => useBulkPurge(cleanupNotifications);
+
+// ── Retention settings ────────────────────────────────────────────────────────
+
+export function useNotificationSettings(enabled = true) {
+  const isClient = useIsClient();
+  return useQuery<NotificationSettings>({
+    queryKey: NOTIFICATION_SETTINGS_KEY,
+    queryFn: getNotificationSettings,
+    enabled: enabled && isClient,
+  });
+}
+
+export function useUpdateNotificationSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: Partial<Pick<NotificationSettings, 'completed_retention_days' | 'cancelled_retention_days'>>) =>
+      updateNotificationSettings(patch),
+    onSuccess: (updated) => qc.setQueryData(NOTIFICATION_SETTINGS_KEY, updated),
   });
 }

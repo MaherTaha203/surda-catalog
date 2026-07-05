@@ -10,10 +10,14 @@ import {
   NOTIFICATIONS_TABLE_DDL,
   NOTIFICATIONS_INDEXES_DDL,
   DEVICES_TABLE_DDL,
+  NOTIFICATION_SETTINGS_TABLE_DDL,
   NOTIFICATIONS_MIGRATION_COLUMNS,
   NOTIFICATIONS_STATUS_MIGRATION,
   NOTIFICATION_TYPES,
   NOTIFICATION_STATUSES,
+  DEFAULT_COMPLETED_RETENTION_DAYS,
+  DEFAULT_CANCELLED_RETENTION_DAYS,
+  MAX_RETENTION_DAYS,
   type NotificationType,
   type NotificationStatus,
 } from './notifications.schema.ts';
@@ -70,6 +74,12 @@ export interface DeviceRow {
   updated_at: string;
 }
 
+export interface NotificationSettings {
+  completed_retention_days: number;
+  cancelled_retention_days: number;
+  updated_at: string;
+}
+
 export class NotificationsService {
   constructor(private readonly db: DatabaseSync) {
     // Create tables (idempotent) and migrate a pre-existing V1 table in place —
@@ -77,6 +87,7 @@ export class NotificationsService {
     // touched, so deleting this folder fully removes the feature.
     this.db.exec(NOTIFICATIONS_TABLE_DDL);
     this.db.exec(DEVICES_TABLE_DDL);
+    this.db.exec(NOTIFICATION_SETTINGS_TABLE_DDL);
     this.db.exec(NOTIFICATIONS_INDEXES_DDL);
 
     const existing = new Set(
@@ -86,6 +97,14 @@ export class NotificationsService {
       if (!existing.has(col.name)) this.db.exec(col.ddl);
     }
     this.db.exec(NOTIFICATIONS_STATUS_MIGRATION);
+
+    // Seed the single settings row (id = 1) with defaults if it doesn't exist.
+    this.db
+      .prepare(
+        `INSERT INTO notification_settings (id, completed_retention_days, cancelled_retention_days, updated_at)
+         VALUES (1, ?, ?, ?) ON CONFLICT(id) DO NOTHING`,
+      )
+      .run(DEFAULT_COMPLETED_RETENTION_DAYS, DEFAULT_CANCELLED_RETENTION_DAYS, new Date().toISOString());
   }
 
   private readonly stmtCache = new Map<string, StatementSync>();
@@ -150,7 +169,7 @@ export class NotificationsService {
     return this.get(id) as NotificationRow;
   }
 
-  /** Edit a notification (allowed only while status = 'new'; enforced in the route). */
+  /** Edit a notification (allowed while status = 'new' or 'read'; enforced in the route). */
   update(id: string, patch: NotificationEdit): NotificationRow | undefined {
     const row = this.get(id);
     if (!row) return undefined;
@@ -228,6 +247,101 @@ export class NotificationsService {
       "UPDATE notifications SET status = 'cancelled', cancelled_at = ?, cancelled_by = ? WHERE id = ?",
     ).run(new Date().toISOString(), by, id);
     return this.get(id);
+  }
+
+  // ── Bulk maintenance (manager tools + auto-expiry) ───────────────────────────
+
+  /**
+   * Delete every notification whose status is in `statuses` and return the
+   * deleted rows so the route can unlink their attachment files. Optionally
+   * limited to rows whose relevant timestamp is older than `before` (ISO) — used
+   * by the retention sweep. The two are combined with the state list per-status.
+   */
+  private deleteByStatuses(statuses: NotificationStatus[]): NotificationRow[] {
+    if (statuses.length === 0) return [];
+    const placeholders = statuses.map(() => '?').join(', ');
+    const rows = this.prep(
+      `SELECT * FROM notifications WHERE status IN (${placeholders})`,
+    ).all(...statuses) as unknown as NotificationRow[];
+    this.prep(`DELETE FROM notifications WHERE status IN (${placeholders})`).run(...statuses);
+    return rows;
+  }
+
+  /** Delete all completed notifications (manager tool). Returns deleted rows. */
+  deleteCompleted(): NotificationRow[] {
+    return this.deleteByStatuses(['completed']);
+  }
+
+  /** Delete all cancelled notifications (manager tool). Returns deleted rows. */
+  deleteCancelled(): NotificationRow[] {
+    return this.deleteByStatuses(['cancelled']);
+  }
+
+  /**
+   * Clean the notification center: delete everything except brand-new
+   * (unread) notifications (manager tool). Returns deleted rows.
+   */
+  cleanupExceptNew(): NotificationRow[] {
+    return this.deleteByStatuses(['read', 'completed', 'cancelled']);
+  }
+
+  /**
+   * Retention sweep (spec §3/§4): delete completed rows older than
+   * `completedDays` and cancelled rows older than `cancelledDays`. A day count
+   * of 0 disables sweeping that state. Returns the deleted rows so the route can
+   * unlink their attachments. Uses completed_at / cancelled_at as the clock.
+   */
+  sweepExpired(completedDays: number, cancelledDays: number): NotificationRow[] {
+    const deleted: NotificationRow[] = [];
+    const now = Date.now();
+    const runOne = (status: NotificationStatus, stampCol: string, days: number) => {
+      if (!Number.isFinite(days) || days <= 0) return;
+      const cutoff = new Date(now - days * 24 * 60 * 60 * 1000).toISOString();
+      const rows = this.prep(
+        `SELECT * FROM notifications
+          WHERE status = ? AND COALESCE(${stampCol}, created_at) < ?`,
+      ).all(status, cutoff) as unknown as NotificationRow[];
+      if (rows.length === 0) return;
+      this.prep(
+        `DELETE FROM notifications
+          WHERE status = ? AND COALESCE(${stampCol}, created_at) < ?`,
+      ).run(status, cutoff);
+      deleted.push(...rows);
+    };
+    runOne('completed', 'completed_at', completedDays);
+    runOne('cancelled', 'cancelled_at', cancelledDays);
+    return deleted;
+  }
+
+  // ── Settings ─────────────────────────────────────────────────────────────────
+
+  getSettings(): NotificationSettings {
+    const row = this.prep(
+      'SELECT completed_retention_days, cancelled_retention_days, updated_at FROM notification_settings WHERE id = 1',
+    ).get() as unknown as NotificationSettings | undefined;
+    return (
+      row ?? {
+        completed_retention_days: DEFAULT_COMPLETED_RETENTION_DAYS,
+        cancelled_retention_days: DEFAULT_CANCELLED_RETENTION_DAYS,
+        updated_at: new Date().toISOString(),
+      }
+    );
+  }
+
+  updateSettings(patch: { completed_retention_days?: number; cancelled_retention_days?: number }): NotificationSettings {
+    const current = this.getSettings();
+    const clamp = (v: number | undefined, fallback: number) => {
+      if (v === undefined || !Number.isFinite(v)) return fallback;
+      return Math.max(0, Math.min(MAX_RETENTION_DAYS, Math.round(v)));
+    };
+    const completed = clamp(patch.completed_retention_days, current.completed_retention_days);
+    const cancelled = clamp(patch.cancelled_retention_days, current.cancelled_retention_days);
+    this.prep(
+      `UPDATE notification_settings
+         SET completed_retention_days = ?, cancelled_retention_days = ?, updated_at = ?
+       WHERE id = 1`,
+    ).run(completed, cancelled, new Date().toISOString());
+    return this.getSettings();
   }
 
   // ── Device registry ─────────────────────────────────────────────────────────

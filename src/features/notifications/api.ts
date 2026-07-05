@@ -5,7 +5,7 @@
  * apiRequest + apiUrl helpers (base-URL + error handling).
  */
 import { apiRequest, apiUrl, ApiError } from '@/api/client';
-import type { Notification, NotificationType, Device, AttachmentType } from './types';
+import type { Notification, NotificationType, Device, AttachmentType, NotificationSettings } from './types';
 
 const JSON_HEADERS = { 'content-type': 'application/json' };
 const BASE = '/notifications-api';
@@ -63,6 +63,36 @@ export async function deleteNotification(id: string): Promise<void> {
 
 export async function cancelNotification(id: string): Promise<Notification> {
   return apiRequest<Notification>(`${BASE}/${encodeURIComponent(id)}/cancel`, { method: 'PATCH' });
+}
+
+// ── Bulk maintenance (manager tools) ──────────────────────────────────────────
+
+export async function purgeCompletedNotifications(): Promise<{ deleted: number }> {
+  return (await apiRequest<{ deleted: number }>(`${BASE}/purge/completed`, { method: 'DELETE' })) ?? { deleted: 0 };
+}
+
+export async function purgeCancelledNotifications(): Promise<{ deleted: number }> {
+  return (await apiRequest<{ deleted: number }>(`${BASE}/purge/cancelled`, { method: 'DELETE' })) ?? { deleted: 0 };
+}
+
+export async function cleanupNotifications(): Promise<{ deleted: number }> {
+  return (await apiRequest<{ deleted: number }>(`${BASE}/purge/except-new`, { method: 'DELETE' })) ?? { deleted: 0 };
+}
+
+// ── Retention settings ────────────────────────────────────────────────────────
+
+export async function getNotificationSettings(): Promise<NotificationSettings> {
+  return apiRequest<NotificationSettings>(`${BASE}/settings`);
+}
+
+export async function updateNotificationSettings(
+  patch: Partial<Pick<NotificationSettings, 'completed_retention_days' | 'cancelled_retention_days'>>,
+): Promise<NotificationSettings> {
+  return apiRequest<NotificationSettings>(`${BASE}/settings`, {
+    method: 'PUT',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(patch),
+  });
 }
 
 export async function markNotificationRead(id: string, deviceId: string): Promise<Notification> {

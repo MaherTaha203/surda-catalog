@@ -66,6 +66,26 @@ export async function deleteProduct(id: string): Promise<void> {
   await apiRequest<void>(`/products/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
+/** Create many products in one transactional request (bulk image import). */
+export async function bulkCreateProducts(items: Record<string, unknown>[]): Promise<Product[]> {
+  const created = await apiRequest<Product[]>('/products/bulk', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ items: items.map((it) => forStorage(it as { imageUrl?: string })) }),
+  });
+  return (created ?? []).map(forDisplay);
+}
+
+/** Bulk-toggle visibility (quick-entry "publish all drafts"). Returns count changed. */
+export async function publishProducts(ids: string[], isHidden = 0): Promise<number> {
+  const res = await apiRequest<{ changed: number }>('/products/publish', {
+    method: 'PATCH',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ ids, isHidden }),
+  });
+  return res?.changed ?? 0;
+}
+
 export async function setProductVisibility(id: string, isHidden: number): Promise<Product> {
   const updated = await apiRequest<Product>(
     `/products/${encodeURIComponent(id)}/visibility`,

@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { createFileRoute, useNavigate, Link } from '@tanstack/react-router';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowRight, Plus, Package, Search, Settings, X, Bell } from 'lucide-react';
+import { ArrowRight, Plus, Package, Search, Settings, X, Bell, Images } from 'lucide-react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { toast } from '@blinkdotnew/ui';
 import {
@@ -146,6 +146,13 @@ function AdminPage() {
             className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           >
             <Bell size={18} />
+          </Link>
+          <Link
+            to="/import-images"
+            aria-label="استيراد الصور"
+            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          >
+            <Images size={18} />
           </Link>
           <Link
             to="/settings"

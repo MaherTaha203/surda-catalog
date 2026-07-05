@@ -171,6 +171,58 @@ export class ProductsService {
   }
 
   /**
+   * Create many products atomically (all-or-nothing) — the bulk image-import
+   * "create all" action. sortOrder is auto-assigned sequentially starting at
+   * `startSortOrder` when a row omits it, so a batch appends to the end of the
+   * catalog in the order given. Returns the created rows.
+   */
+  createMany(inputs: NewProduct[], startSortOrder = 0): ProductRow[] {
+    const now = new Date().toISOString();
+    return this.transaction(() => {
+      const created: ProductRow[] = [];
+      inputs.forEach((input, i) => {
+        const row: ProductRow = {
+          id: randomUUID(),
+          name: input.name,
+          description: input.description ?? '',
+          size: input.size ?? '',
+          cartonQuantity: input.cartonQuantity ?? 0,
+          cartonPrice: input.cartonPrice ?? 0,
+          offerPrice: input.offerPrice ?? 0,
+          offerQuantity: input.offerQuantity ?? 0,
+          bonusQuantity: input.bonusQuantity ?? 0,
+          imageUrl: input.imageUrl ?? '',
+          category: input.category,
+          isHidden: input.isHidden ?? 0,
+          sortOrder: input.sortOrder ?? startSortOrder + i,
+          createdAt: now,
+          updatedAt: now,
+        };
+        this.upsert(row);
+        created.push(row);
+      });
+      return created;
+    });
+  }
+
+  /**
+   * Set visibility for many products atomically — the quick-entry "publish all
+   * drafts" action. Unknown ids are ignored. Returns the number changed.
+   */
+  setVisibilityMany(ids: string[], isHidden: number): number {
+    const now = new Date().toISOString();
+    const stmt = this.prep('UPDATE products SET isHidden = ?, updatedAt = ? WHERE id = ?');
+    return this.transaction(() => {
+      let changed = 0;
+      for (const id of ids) {
+        const res = stmt.run(isHidden ? 1 : 0, now, id);
+        changed += Number(res.changes);
+      }
+      return changed;
+    });
+  }
+
+  /**
    * Update an existing product's fields. Preserves `id` and `createdAt`, refreshes
    * `updatedAt`. Returns the updated row, or null when the id does not exist.
    */
