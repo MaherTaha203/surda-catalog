@@ -7,8 +7,10 @@
  *
  * Admin (write):
  *   POST   /products                  -> 201 Product
+ *   POST   /products/bulk             -> 201 Product[]        body: { items: Product[] }
  *   PUT    /products/:id              -> 200 Product | 404
  *   DELETE /products/:id              -> 204 | 404
+ *   PATCH  /products/publish          -> 200 { changed }      body: { ids, isHidden? }
  *   PATCH  /products/:id/visibility   -> 200 Product | 404   body: { isHidden } | { hidden }
  *   PATCH  /products/:id/order        -> 200 Product | 404   body: { sortOrder }
  *
@@ -45,6 +47,24 @@ const toNum = (v: unknown): number => {
 };
 /** Normalize any truthy/falsy input to the 0|1 the schema stores. */
 const toFlag = (v: unknown): number => (toInt(v) ? 1 : 0);
+
+/** Build a NewProduct from a raw body/item (name + category required upstream). */
+function buildNewProduct(body: Record<string, unknown>): NewProduct {
+  return {
+    name: toStr(body.name).trim(),
+    description: toStr(body.description),
+    size: toStr(body.size),
+    cartonQuantity: toInt(body.cartonQuantity),
+    cartonPrice: toNum(body.cartonPrice),
+    offerPrice: toNum(body.offerPrice),
+    offerQuantity: toInt(body.offerQuantity),
+    bonusQuantity: toInt(body.bonusQuantity),
+    imageUrl: toStr(body.imageUrl),
+    category: toStr(body.category).trim(),
+    isHidden: toFlag(body.isHidden),
+    ...(('sortOrder' in body) ? { sortOrder: toInt(body.sortOrder) } : {}),
+  };
+}
 
 /** Build a partial update from only the fields present in the body. */
 function buildPatch(body: Record<string, unknown>): ProductUpdate {
@@ -112,20 +132,7 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
     if (!category) {
       return reply.code(400).send({ error: 'Bad Request', message: 'Product category is required' });
     }
-    const input: NewProduct = {
-      name,
-      description: toStr(body.description),
-      size: toStr(body.size),
-      cartonQuantity: toInt(body.cartonQuantity),
-      cartonPrice: toNum(body.cartonPrice),
-      offerPrice: toNum(body.offerPrice),
-      offerQuantity: toInt(body.offerQuantity),
-      bonusQuantity: toInt(body.bonusQuantity),
-      imageUrl: toStr(body.imageUrl),
-      category,
-      isHidden: toFlag(body.isHidden),
-      sortOrder: toInt(body.sortOrder),
-    };
+    const input: NewProduct = { ...buildNewProduct(body), sortOrder: toInt(body.sortOrder) };
     try {
       const created = products.create(input);
       return reply.code(201).send(created);
@@ -134,6 +141,57 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
       return reply
         .code(500)
         .send({ error: 'Internal Server Error', message: 'Failed to create product' });
+    }
+  });
+
+  // ── POST /products/bulk ────────────────────────────────────────────────────
+  // Create many products in one transaction (bulk image-import "create all").
+  // Body: { items: NewProduct[] }. Every item needs a name + category; sortOrder
+  // is auto-assigned to append after the current catalog when omitted.
+  fastify.post<{ Body: { items?: Record<string, unknown>[] } }>('/products/bulk', async (request, reply) => {
+    const items = request.body?.items;
+    if (!Array.isArray(items) || items.length === 0) {
+      return reply.code(400).send({ error: 'Bad Request', message: 'items: Product[] is required' });
+    }
+    if (items.length > 1000) {
+      return reply.code(400).send({ error: 'Bad Request', message: 'الحد الأقصى 1000 منتج في الدفعة الواحدة' });
+    }
+    const inputs: NewProduct[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const input = buildNewProduct(items[i] ?? {});
+      if (!input.name) {
+        return reply.code(400).send({ error: 'Bad Request', message: `المنتج رقم ${i + 1}: الاسم مطلوب` });
+      }
+      if (!input.category) {
+        return reply.code(400).send({ error: 'Bad Request', message: `المنتج رقم ${i + 1}: التصنيف مطلوب` });
+      }
+      inputs.push(input);
+    }
+    try {
+      const created = products.createMany(inputs, products.count());
+      return reply.code(201).send(created);
+    } catch (err) {
+      fastify.log.error(err, 'failed to bulk-create products');
+      return reply.code(500).send({ error: 'Internal Server Error', message: 'Failed to create products' });
+    }
+  });
+
+  // ── PATCH /products/publish ────────────────────────────────────────────────
+  // Bulk visibility toggle (quick-entry "publish all drafts"). Body:
+  // { ids: string[], isHidden?: 0|1 } — defaults to publishing (isHidden = 0).
+  fastify.patch<{ Body: { ids?: unknown; isHidden?: unknown } }>('/products/publish', async (request, reply) => {
+    const rawIds = request.body?.ids;
+    if (!Array.isArray(rawIds) || rawIds.length === 0) {
+      return reply.code(400).send({ error: 'Bad Request', message: 'ids: string[] is required' });
+    }
+    const ids = rawIds.filter((v): v is string => typeof v === 'string' && v.length > 0);
+    const isHidden = 'isHidden' in (request.body ?? {}) ? toFlag(request.body?.isHidden) : 0;
+    try {
+      const changed = products.setVisibilityMany(ids, isHidden);
+      return { changed };
+    } catch (err) {
+      fastify.log.error(err, 'failed to bulk-publish products');
+      return reply.code(500).send({ error: 'Internal Server Error', message: 'Failed to publish products' });
     }
   });
 

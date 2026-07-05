@@ -8,20 +8,27 @@
  *   GET    /notifications-api                 -> NotificationRow[]  (manager: all)
  *   GET    /notifications-api?device_id=<id>  -> NotificationRow[]  (delegate feed)
  *   GET    /notifications-api/:id             -> NotificationRow | 404
- *   POST   /notifications-api                 -> 201 NotificationRow          (admin)
- *   PUT    /notifications-api/:id             -> 200 | 404 | 409 (only status=new) (admin)
- *   DELETE /notifications-api/:id             -> 204 | 404 | 409 (only status=new) (admin)
- *   PATCH  /notifications-api/:id/read        -> 200 | 404   body:{device_id}   (rep)
- *   PATCH  /notifications-api/:id/complete    -> 200 | 404   body:{device_id}   (rep)
- *   PATCH  /notifications-api/:id/cancel      -> 200 | 404                       (admin)
- *   POST   /notifications-api/attachment      -> 201 { path, type, bytes }       (admin)
- *   GET    /notifications-api/devices         -> DeviceRow[]
- *   POST   /notifications-api/devices         -> 200 DeviceRow  body:{device_id, device_name}
+ *   POST   /notifications-api                    -> 201 NotificationRow       (admin)
+ *   PUT    /notifications-api/:id                -> 200 | 404 | 409 (new|read) (admin)
+ *   DELETE /notifications-api/:id                -> 204 | 404 (any status)     (admin)
+ *   PATCH  /notifications-api/:id/read           -> 200 | 404  body:{device_id} (rep)
+ *   PATCH  /notifications-api/:id/complete       -> 200 | 404  body:{device_id} (rep)
+ *   PATCH  /notifications-api/:id/cancel         -> 200 | 404                    (admin)
+ *   DELETE /notifications-api/purge/completed    -> { deleted } (all completed)  (admin)
+ *   DELETE /notifications-api/purge/cancelled    -> { deleted } (all cancelled)  (admin)
+ *   DELETE /notifications-api/purge/except-new   -> { deleted } (clean center)   (admin)
+ *   GET    /notifications-api/settings           -> NotificationSettings
+ *   PUT    /notifications-api/settings           -> NotificationSettings         (admin)
+ *   POST   /notifications-api/attachment         -> 201 { path, type, bytes }    (admin)
+ *   GET    /notifications-api/devices            -> DeviceRow[]
+ *   POST   /notifications-api/devices            -> 200 DeviceRow
  *
- * Security (spec §17): admin-only actions (create/edit/cancel/delete) are gated
- * on the client by the same PIN that guards the whole admin panel — this app has
- * no server-side auth (the PIN is a device-level client gate). The server still
- * enforces the real state rules: edit/delete only while status = 'new'.
+ * Security (spec §17): admin-only actions are gated on the client by the same PIN
+ * that guards the whole admin panel — this app has no server-side auth (the PIN is
+ * a device-level client gate). The server still enforces the real state rules:
+ * edit only while status = new|read; delete removes the row + attachment at any
+ * stage. Completed/cancelled rows are also swept automatically after a retention
+ * window (settings).
  *
  * NOTE: no SQL here — all data access goes through NotificationsService.
  */
@@ -38,6 +45,32 @@ const toStr = (v: unknown): string => (v === null || v === undefined ? '' : Stri
 const notificationsRoutes: FastifyPluginAsync = async (fastify) => {
   const notifications = new NotificationsService(fastify.db);
   const attachments = new AttachmentStorage();
+
+  /** Unlink the attachment files of a set of deleted rows (best-effort). */
+  const purgeAttachments = async (rows: { attachment_path: string | null }[]) => {
+    await Promise.all(rows.map((r) => (r.attachment_path ? attachments.deleteByPath(r.attachment_path) : undefined)));
+  };
+
+  // ── Retention sweep (spec §3/§4) ─────────────────────────────────────────────
+  // Runs once at boot (covers container restarts) then hourly. Deletes expired
+  // completed/cancelled rows and their attachments. .unref() so it never keeps
+  // the process alive on its own.
+  const runSweep = async () => {
+    try {
+      const { completed_retention_days, cancelled_retention_days } = notifications.getSettings();
+      const deleted = notifications.sweepExpired(completed_retention_days, cancelled_retention_days);
+      if (deleted.length) {
+        await purgeAttachments(deleted);
+        fastify.log.info({ count: deleted.length }, 'notification retention sweep removed expired records');
+      }
+    } catch (err) {
+      fastify.log.error(err, 'notification retention sweep failed');
+    }
+  };
+  void runSweep();
+  const sweepTimer = setInterval(() => void runSweep(), 60 * 60 * 1000);
+  sweepTimer.unref?.();
+  fastify.addHook('onClose', async () => clearInterval(sweepTimer));
 
   // ── Device registry ─────────────────────────────────────────────────────────
   fastify.get('/notifications-api/devices', async (_request, reply) => {
@@ -140,14 +173,14 @@ const notificationsRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  // ── Edit (admin, only while status = new) ────────────────────────────────────
+  // ── Edit (admin, while status = new or read — spec §1/§2) ─────────────────────
   fastify.put<{ Params: IdParams; Body: Record<string, unknown> }>('/notifications-api/:id', async (request, reply) => {
     const body = request.body ?? {};
     try {
       const existing = notifications.get(request.params.id);
       if (!existing) return reply.code(404).send({ error: 'Not Found', message: 'Notification not found' });
-      if (existing.status !== 'new') {
-        return reply.code(409).send({ error: 'Conflict', message: 'لا يمكن تعديل إشعار بعد قراءته' });
+      if (existing.status !== 'new' && existing.status !== 'read') {
+        return reply.code(409).send({ error: 'Conflict', message: 'لا يمكن تعديل إشعار بعد تنفيذه أو إلغائه' });
       }
       if ('type' in body && !NotificationsService.isValidType(toStr(body.type).trim())) {
         return reply.code(400).send({ error: 'Bad Request', message: 'نوع الإشعار غير صالح' });
@@ -182,15 +215,78 @@ const notificationsRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  // ── Delete (admin, only while status = new) ──────────────────────────────────
+  // ── Bulk maintenance (admin, spec: manager tools) ────────────────────────────
+  // Two-segment static paths so they never collide with `/notifications-api/:id`.
+  // Each removes the matching rows and their attachment files.
+  fastify.delete('/notifications-api/purge/completed', async (_request, reply) => {
+    try {
+      const deleted = notifications.deleteCompleted();
+      await purgeAttachments(deleted);
+      return { deleted: deleted.length };
+    } catch (err) {
+      fastify.log.error(err, 'failed to purge completed notifications');
+      return reply.code(500).send({ error: 'Internal Server Error', message: 'Failed to purge notifications' });
+    }
+  });
+
+  fastify.delete('/notifications-api/purge/cancelled', async (_request, reply) => {
+    try {
+      const deleted = notifications.deleteCancelled();
+      await purgeAttachments(deleted);
+      return { deleted: deleted.length };
+    } catch (err) {
+      fastify.log.error(err, 'failed to purge cancelled notifications');
+      return reply.code(500).send({ error: 'Internal Server Error', message: 'Failed to purge notifications' });
+    }
+  });
+
+  // Clean the center: everything except brand-new (unread) notifications.
+  fastify.delete('/notifications-api/purge/except-new', async (_request, reply) => {
+    try {
+      const deleted = notifications.cleanupExceptNew();
+      await purgeAttachments(deleted);
+      return { deleted: deleted.length };
+    } catch (err) {
+      fastify.log.error(err, 'failed to clean notification center');
+      return reply.code(500).send({ error: 'Internal Server Error', message: 'Failed to clean notifications' });
+    }
+  });
+
+  // ── Settings (retention window) ──────────────────────────────────────────────
+  fastify.get('/notifications-api/settings', async (_request, reply) => {
+    try {
+      return notifications.getSettings();
+    } catch (err) {
+      fastify.log.error(err, 'failed to load notification settings');
+      return reply.code(500).send({ error: 'Internal Server Error', message: 'Failed to load settings' });
+    }
+  });
+
+  fastify.put<{ Body: Record<string, unknown> }>('/notifications-api/settings', async (request, reply) => {
+    const body = request.body ?? {};
+    const toNum = (v: unknown): number | undefined => {
+      if (v === undefined || v === null || v === '') return undefined;
+      const n = Number(v);
+      return Number.isFinite(n) ? n : undefined;
+    };
+    try {
+      return notifications.updateSettings({
+        completed_retention_days: toNum(body.completed_retention_days),
+        cancelled_retention_days: toNum(body.cancelled_retention_days),
+      });
+    } catch (err) {
+      fastify.log.error(err, 'failed to update notification settings');
+      return reply.code(500).send({ error: 'Internal Server Error', message: 'Failed to update settings' });
+    }
+  });
+
+  // ── Delete (admin, any status — spec: delete available at every stage) ───────
   fastify.delete<{ Params: IdParams }>('/notifications-api/:id', async (request, reply) => {
     try {
       const existing = notifications.get(request.params.id);
       if (!existing) return reply.code(404).send({ error: 'Not Found', message: 'Notification not found' });
-      if (existing.status !== 'new') {
-        return reply.code(409).send({ error: 'Conflict', message: 'لا يمكن حذف إشعار بعد قراءته — استخدم الإلغاء' });
-      }
       notifications.delete(request.params.id);
+      // Always remove the attachment + any linked file (spec: record + attachment).
       if (existing.attachment_path) await attachments.deleteByPath(existing.attachment_path);
       return reply.code(204).send();
     } catch (err) {

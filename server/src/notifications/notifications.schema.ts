@@ -49,6 +49,25 @@ CREATE TABLE IF NOT EXISTS notification_devices (
 );
 `;
 
+/**
+ * Single-row settings for the retention lifecycle (spec §3/§4). Completed and
+ * cancelled notifications are kept for a short window, then swept automatically.
+ * A value of 0 disables auto-deletion for that state (manual/bulk only).
+ */
+export const NOTIFICATION_SETTINGS_TABLE_DDL = `
+CREATE TABLE IF NOT EXISTS notification_settings (
+  id                       INTEGER PRIMARY KEY CHECK (id = 1),
+  completed_retention_days INTEGER NOT NULL DEFAULT 7,
+  cancelled_retention_days INTEGER NOT NULL DEFAULT 3,
+  updated_at               TEXT NOT NULL
+);
+`;
+
+export const DEFAULT_COMPLETED_RETENTION_DAYS = 7;
+export const DEFAULT_CANCELLED_RETENTION_DAYS = 3;
+/** Guard rail so a mistyped value can't keep records for years. */
+export const MAX_RETENTION_DAYS = 365;
+
 export const NOTIFICATIONS_INDEXES_DDL = `
 CREATE INDEX IF NOT EXISTS idx_notifications_device ON notifications (device_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications (created_at);
