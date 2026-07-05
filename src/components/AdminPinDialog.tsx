@@ -71,6 +71,7 @@ export function AdminPinDialog({ open, onClose, onSuccess }: AdminPinDialogProps
               onSuccess={onSuccess}
               onBack={onClose}
               hideBackButton
+              lockoutKey="admin"
             />
           </motion.div>
         </motion.div>

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sarda-catalog-v3';
+const CACHE_NAME = 'sarda-catalog-v4';
 const PRECACHE_URLS = [
   '/',
   '/catalog',
@@ -30,7 +30,10 @@ self.addEventListener('activate', (event) => {
 // reflected immediately, never served stale from the cache.
 function isApiRequest(url) {
   if (url.origin !== self.location.origin) return true; // cross-origin API host
-  return /^\/(products|upload|uploads|health|api|catalog-settings)(\/|$)/.test(url.pathname);
+  // [notifications-feature] `notifications-api` is EXPERIMENTAL — remove it here
+  // to delete the feature. It MUST be network-first (dynamic feed), never the
+  // cache-first static path, or delegates would see a stale notification list.
+  return /^\/(products|upload|uploads|health|api|catalog-settings|notifications-api)(\/|$)/.test(url.pathname);
 }
 
 self.addEventListener('fetch', (event) => {
