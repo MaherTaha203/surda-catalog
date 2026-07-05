@@ -19,6 +19,8 @@ import productsRoutes from './routes/products.ts';
 import uploadRoute from './routes/upload.ts';
 import mediaRoutes from './routes/media.ts';
 import settingsRoutes from './routes/settings.ts';
+// [notifications-feature] EXPERIMENTAL — remove this line to delete the feature.
+import notificationsRoutes from './notifications/notifications.route.ts';
 import { UPLOADS_BASE, MAX_BYTES } from './services/storage.ts';
 
 export function buildApp(): FastifyInstance {
@@ -66,6 +68,8 @@ export function buildApp(): FastifyInstance {
   app.register(uploadRoute);
   app.register(mediaRoutes);
   app.register(settingsRoutes);
+  // [notifications-feature] EXPERIMENTAL — remove this line to delete the feature.
+  app.register(notificationsRoutes);
 
   // Serve the built static frontend from the same origin (production single
   // service). No-op when dist/ is absent (API-only dev). Registered last so the

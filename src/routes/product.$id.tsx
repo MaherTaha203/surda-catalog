@@ -18,6 +18,9 @@ import { useDisplayPrefs, effectiveShowPrices, FONT_CLASSES } from '@/lib/displa
 import { ImageViewer } from '@/components/ImageViewer';
 import { resolveThumbUrl } from '@/api/client';
 import type { Product } from '@/types/product';
+// [notifications-feature] EXPERIMENTAL — remove this import, the validateSearch
+// `notif` field, and the <NotificationSourceBar/> block below to delete the feature.
+import { NotificationSourceBar } from '@/features/notifications';
 
 async function fetchProduct(id: string): Promise<Product | null> {
   try {
@@ -35,6 +38,12 @@ export const Route = createFileRoute('/product/$id')({
   head: () => ({
     meta: [{ title: `تفاصيل المنتج — سردا` }],
   }),
+  // [notifications-feature] EXPERIMENTAL — optional `?notif=<id>` tags the page as
+  // opened from a notification. Absent on every normal catalog navigation.
+  validateSearch: (search: Record<string, unknown>): { notif?: string } => {
+    const notif = typeof search.notif === 'string' ? search.notif : undefined;
+    return notif ? { notif } : {};
+  },
   component: ProductDetailPage,
 });
 
@@ -64,6 +73,8 @@ function PageHeader({ onBack }: { onBack: () => void }) {
 
 function ProductDetailPage() {
   const { id } = useParams({ from: '/product/$id' });
+  // [notifications-feature] EXPERIMENTAL — set only when opened from a notification.
+  const { notif } = Route.useSearch();
   const navigate = useNavigate();
   const router = useRouter();
   const canGoBack = useCanGoBack();
@@ -275,6 +286,13 @@ function ProductDetailPage() {
   return (
     <div className="min-h-dvh bg-background" dir="rtl">
       <PageHeader onBack={goBack} />
+
+      {/* [notifications-feature] EXPERIMENTAL — shown only when opened from a notification. */}
+      {notif && (
+        <div className="max-w-3xl mx-auto px-4 pt-3">
+          <NotificationSourceBar notifId={notif} />
+        </div>
+      )}
 
       {/* overflow-x-hidden clips the horizontal slide — no page-level scrollbar */}
       <div

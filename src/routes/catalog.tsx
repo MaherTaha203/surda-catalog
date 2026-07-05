@@ -11,6 +11,8 @@ import { getCompanyLogo, lockPin, unlockPin, unlockAdmin, isAdminUnlocked } from
 import { useIsClient } from '@/hooks/useIsClient';
 import { useDisplayPrefs, effectiveShowPrices, DENSITY_GRID, FONT_CLASSES } from '@/lib/display-prefs';
 import type { ProductCategory } from '@/types/product';
+// [notifications-feature] EXPERIMENTAL — remove this import + <NotificationBell/> to delete the feature.
+import { NotificationBell } from '@/features/notifications';
 
 export const Route = createFileRoute('/catalog')({
   head: () => ({
@@ -102,6 +104,8 @@ function CatalogPage() {
 
             {/* Actions */}
             <div className="flex items-center gap-1">
+              {/* [notifications-feature] EXPERIMENTAL — tiny bell + unread badge. */}
+              <NotificationBell />
               {/* Discreet admin entry — a plain system-looking lock icon.
                   Unlocked sessions go straight in; otherwise the PIN dialog opens. */}
               <button

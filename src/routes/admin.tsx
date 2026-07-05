@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { createFileRoute, useNavigate, Link } from '@tanstack/react-router';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowRight, Plus, Package, Search, Settings, X } from 'lucide-react';
+import { ArrowRight, Plus, Package, Search, Settings, X, Bell } from 'lucide-react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { toast } from '@blinkdotnew/ui';
 import {
@@ -139,6 +139,14 @@ function AdminPage() {
           <h1 className="text-base sm:text-lg font-bold text-foreground whitespace-nowrap">لوحة التحكم</h1>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
+          {/* [notifications-feature] EXPERIMENTAL — remove this Link to delete the feature. */}
+          <Link
+            to="/notifications"
+            aria-label="الإشعارات"
+            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          >
+            <Bell size={18} />
+          </Link>
           <Link
             to="/settings"
             aria-label="إعدادات الكتالوج"
