@@ -7,6 +7,10 @@
  *   showPrices             boolean  whether prices are available in the catalog
  *   allowRepPriceToggle    boolean  may representatives hide/show prices themselves
  *   defaultProductImageUrl string   image shown for products without their own
+ *   company*               string   single Company Profile (name, tagline, phone,
+ *                                    whatsapp, email, website, address) — the one
+ *                                    source of company identity, reused everywhere
+ *                                    (catalog header, presentations, …).
  *
  * Follows the ProductsService pattern: this is the ONLY place that touches the
  * settings table — routes contain no SQL.
@@ -17,15 +21,31 @@ export interface CatalogSettings {
   showPrices: boolean;
   allowRepPriceToggle: boolean;
   defaultProductImageUrl: string;
+  companyName: string;
+  companyTagline: string;
+  companyPhone: string;
+  companyWhatsapp: string;
+  companyEmail: string;
+  companyWebsite: string;
+  companyAddress: string;
 }
 
 export const SETTINGS_DEFAULTS: CatalogSettings = {
   showPrices: true,
   allowRepPriceToggle: true,
   defaultProductImageUrl: '',
+  companyName: 'شركة سردا',
+  companyTagline: 'للتجارة والصناعة',
+  companyPhone: '',
+  companyWhatsapp: '',
+  companyEmail: '',
+  companyWebsite: '',
+  companyAddress: '',
 };
 
 const KEYS = Object.keys(SETTINGS_DEFAULTS) as (keyof CatalogSettings)[];
+/** Keys whose value is a boolean; everything else is coerced to string. */
+const BOOLEAN_KEYS = new Set<keyof CatalogSettings>(['showPrices', 'allowRepPriceToggle']);
 
 export class SettingsService {
   constructor(private readonly db: DatabaseSync) {}
@@ -37,12 +57,15 @@ export class SettingsService {
     }[];
     const result: CatalogSettings = { ...SETTINGS_DEFAULTS };
     for (const row of rows) {
-      if (!KEYS.includes(row.key as keyof CatalogSettings)) continue;
+      const key = row.key as keyof CatalogSettings;
+      if (!KEYS.includes(key)) continue;
       try {
         const parsed = JSON.parse(row.value);
-        if (row.key === 'showPrices') result.showPrices = Boolean(parsed);
-        if (row.key === 'allowRepPriceToggle') result.allowRepPriceToggle = Boolean(parsed);
-        if (row.key === 'defaultProductImageUrl') result.defaultProductImageUrl = String(parsed ?? '');
+        if (BOOLEAN_KEYS.has(key)) {
+          (result[key] as boolean) = Boolean(parsed);
+        } else {
+          (result[key] as string) = String(parsed ?? '');
+        }
       } catch {
         /* ignore malformed rows — defaults win */
       }

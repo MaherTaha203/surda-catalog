@@ -12,12 +12,27 @@ export interface CatalogSettings {
   allowRepPriceToggle: boolean;
   /** Image shown for products without their own image ('' = none). */
   defaultProductImageUrl: string;
+  /** Company Profile — the single source of company identity, reused everywhere. */
+  companyName: string;
+  companyTagline: string;
+  companyPhone: string;
+  companyWhatsapp: string;
+  companyEmail: string;
+  companyWebsite: string;
+  companyAddress: string;
 }
 
 export const CATALOG_SETTINGS_DEFAULTS: CatalogSettings = {
   showPrices: true,
   allowRepPriceToggle: true,
   defaultProductImageUrl: '',
+  companyName: 'شركة سردا',
+  companyTagline: 'للتجارة والصناعة',
+  companyPhone: '',
+  companyWhatsapp: '',
+  companyEmail: '',
+  companyWebsite: '',
+  companyAddress: '',
 };
 
 /**
