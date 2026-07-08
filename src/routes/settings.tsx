@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { createFileRoute, useNavigate, Link } from '@tanstack/react-router';
-import { ArrowRight, ImagePlus, KeyRound, Trash2, Check, Coins, ImageOff, ListOrdered } from 'lucide-react';
+import { ArrowRight, ImagePlus, KeyRound, Trash2, Check, Coins, ImageOff, ListOrdered, Building2, Save } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@blinkdotnew/ui';
 import {
@@ -177,6 +177,49 @@ function SettingsPage() {
   }, [isClient]);
   const [confirmRemoveLogo, setConfirmRemoveLogo] = useState(false);
 
+  // Company Profile text fields (server settings) — edited locally, saved on demand.
+  type CompanyFields = Pick<
+    CatalogSettings,
+    'companyName' | 'companyTagline' | 'companyPhone' | 'companyWhatsapp' | 'companyEmail' | 'companyWebsite' | 'companyAddress'
+  >;
+  const [company, setCompany] = useState<CompanyFields>({
+    companyName: '',
+    companyTagline: '',
+    companyPhone: '',
+    companyWhatsapp: '',
+    companyEmail: '',
+    companyWebsite: '',
+    companyAddress: '',
+  });
+  // Seed the form from settings once they load / change on the server.
+  useEffect(() => {
+    setCompany({
+      companyName: settings.companyName,
+      companyTagline: settings.companyTagline,
+      companyPhone: settings.companyPhone,
+      companyWhatsapp: settings.companyWhatsapp,
+      companyEmail: settings.companyEmail,
+      companyWebsite: settings.companyWebsite,
+      companyAddress: settings.companyAddress,
+    });
+  }, [
+    settings.companyName,
+    settings.companyTagline,
+    settings.companyPhone,
+    settings.companyWhatsapp,
+    settings.companyEmail,
+    settings.companyWebsite,
+    settings.companyAddress,
+  ]);
+  const companyDirty =
+    company.companyName !== settings.companyName ||
+    company.companyTagline !== settings.companyTagline ||
+    company.companyPhone !== settings.companyPhone ||
+    company.companyWhatsapp !== settings.companyWhatsapp ||
+    company.companyEmail !== settings.companyEmail ||
+    company.companyWebsite !== settings.companyWebsite ||
+    company.companyAddress !== settings.companyAddress;
+
   // Default product image (server-side)
   const [confirmRemoveDefault, setConfirmRemoveDefault] = useState(false);
   const [uploadingDefault, setUploadingDefault] = useState(false);
@@ -196,6 +239,23 @@ function SettingsPage() {
       toast.success('تم تحديث شعار الشركة');
     } catch (e) {
       toast.error((e as Error).message || 'تعذّر معالجة الصورة');
+    }
+  };
+
+  const handleSaveCompany = async () => {
+    try {
+      await settingsMutation.mutateAsync({
+        companyName: company.companyName.trim() || 'شركة سردا',
+        companyTagline: company.companyTagline.trim(),
+        companyPhone: company.companyPhone.trim(),
+        companyWhatsapp: company.companyWhatsapp.trim(),
+        companyEmail: company.companyEmail.trim(),
+        companyWebsite: company.companyWebsite.trim(),
+        companyAddress: company.companyAddress.trim(),
+      });
+      toast.success('تم حفظ معلومات الشركة');
+    } catch {
+      /* error toast already shown by the mutation */
     }
   };
 
@@ -278,6 +338,29 @@ function SettingsPage() {
     </div>
   );
 
+  const companyField = (
+    id: string,
+    label: string,
+    key: keyof CompanyFields,
+    opts: { type?: string; dir?: 'rtl' | 'ltr'; placeholder?: string; inputMode?: 'text' | 'tel' | 'email' | 'url' } = {},
+  ) => (
+    <div>
+      <label htmlFor={id} className="block text-sm font-medium text-foreground mb-1.5">
+        {label}
+      </label>
+      <input
+        id={id}
+        type={opts.type ?? 'text'}
+        dir={opts.dir ?? 'rtl'}
+        inputMode={opts.inputMode}
+        value={company[key]}
+        placeholder={opts.placeholder}
+        onChange={(e) => setCompany((c) => ({ ...c, [key]: e.target.value }))}
+        className="w-full h-11 px-3 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring"
+      />
+    </div>
+  );
+
   return (
     <div className="min-h-dvh bg-background" dir="rtl">
       <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-md border-b border-border">
@@ -293,23 +376,49 @@ function SettingsPage() {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-        {/* 1 — Company logo */}
+        {/* 1 — Company Profile (single source of company identity) */}
         <SectionCard
-          icon={<ImagePlus size={18} className="text-primary" aria-hidden />}
-          title="شعار الشركة"
-          description="يظهر الشعار في رأس صفحة الكتالوج. يُحفظ على هذا الجهاز."
+          icon={<Building2 size={18} className="text-primary" aria-hidden />}
+          title="معلومات الشركة"
+          description="مصدر واحد لهوية الشركة — يُستخدم في رأس الكتالوج والعروض التسويقية وملفات PDF. الشعار يُحفظ على هذا الجهاز، وبقية المعلومات تُحفظ على كل الأجهزة."
         >
-          <ImagePickerRow
-            preview={logo}
-            previewAlt="شعار الشركة الحالي"
-            emptyIcon={<ImagePlus size={22} strokeWidth={1.5} aria-hidden />}
-            uploadLabel="رفع شعار"
-            replaceLabel="استبدال الشعار"
-            removeLabel="إزالة الشعار"
-            inputLabel="اختيار شعار الشركة"
-            onPick={handleLogoPick}
-            onRemove={() => setConfirmRemoveLogo(true)}
-          />
+          <div className="space-y-5">
+            <div>
+              <span className="block text-sm font-medium text-foreground mb-2">الشعار</span>
+              <ImagePickerRow
+                preview={logo}
+                previewAlt="شعار الشركة الحالي"
+                emptyIcon={<ImagePlus size={22} strokeWidth={1.5} aria-hidden />}
+                uploadLabel="رفع شعار"
+                replaceLabel="استبدال الشعار"
+                removeLabel="إزالة الشعار"
+                inputLabel="اختيار شعار الشركة"
+                onPick={handleLogoPick}
+                onRemove={() => setConfirmRemoveLogo(true)}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {companyField('company-name', 'اسم الشركة', 'companyName', { placeholder: 'شركة سردا' })}
+              {companyField('company-tagline', 'الوصف / الشعار النصي', 'companyTagline', { placeholder: 'للتجارة والصناعة' })}
+              {companyField('company-phone', 'الهاتف', 'companyPhone', { dir: 'ltr', inputMode: 'tel', placeholder: '+970...' })}
+              {companyField('company-whatsapp', 'واتساب', 'companyWhatsapp', { dir: 'ltr', inputMode: 'tel', placeholder: '+970...' })}
+              {companyField('company-email', 'البريد الإلكتروني', 'companyEmail', { type: 'email', dir: 'ltr', inputMode: 'email', placeholder: 'info@example.com' })}
+              {companyField('company-website', 'الموقع الإلكتروني', 'companyWebsite', { dir: 'ltr', inputMode: 'url', placeholder: 'www.example.com' })}
+              <div className="sm:col-span-2">
+                {companyField('company-address', 'العنوان', 'companyAddress', { placeholder: 'المدينة، الشارع...' })}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleSaveCompany}
+              disabled={!companyDirty || settingsMutation.isPending}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              <Save size={16} aria-hidden /> حفظ معلومات الشركة
+            </button>
+          </div>
         </SectionCard>
 
         {/* 2 — Default product image */}

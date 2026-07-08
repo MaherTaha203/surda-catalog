@@ -7,7 +7,8 @@ import { useCatalogSettings } from '@/hooks/useCatalogSettings';
 import { ProductCard } from '@/components/ProductCard';
 import { AdminPinDialog } from '@/components/AdminPinDialog';
 import { BrandMark } from '@/components/BrandMark';
-import { getCompanyLogo, lockPin, unlockPin, unlockAdmin, isAdminUnlocked } from '@/lib/storage';
+import { lockPin, unlockPin, unlockAdmin, isAdminUnlocked } from '@/lib/storage';
+import { useCompanyProfile } from '@/hooks/useCompanyProfile';
 import { useIsClient } from '@/hooks/useIsClient';
 import { useDisplayPrefs, effectiveShowPrices, DENSITY_GRID, FONT_CLASSES } from '@/lib/display-prefs';
 import type { ProductCategory } from '@/types/product';
@@ -33,7 +34,7 @@ function CatalogPage() {
     counts,
   } = useProducts();
 
-  const companyLogo = getCompanyLogo();
+  const company = useCompanyProfile();
   const adminMode = isAdminUnlocked();
   const isClient = useIsClient();
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
@@ -91,14 +92,14 @@ function CatalogPage() {
           <div className="flex items-center justify-between gap-4">
             {/* Logo + title */}
             <div className="flex items-center gap-3">
-              {companyLogo ? (
-                <img src={companyLogo} alt="شعار سردا" className="h-10 w-10 rounded-xl object-cover" />
+              {company.logo ? (
+                <img src={company.logo} alt={`شعار ${company.name}`} className="h-10 w-10 rounded-xl object-cover" />
               ) : (
                 <BrandMark size={40} />
               )}
               <div>
-                <h1 className="text-sm font-bold text-foreground leading-tight">شركة سردا</h1>
-                <p className="text-[10px] text-muted-foreground">للتجارة والصناعة</p>
+                <h1 className="text-sm font-bold text-foreground leading-tight">{company.name}</h1>
+                {company.tagline && <p className="text-[10px] text-muted-foreground">{company.tagline}</p>}
               </div>
             </div>
 

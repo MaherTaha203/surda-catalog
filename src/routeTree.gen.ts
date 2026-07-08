@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as PresentationsRouteImport } from './routes/presentations'
 import { Route as PreferencesRouteImport } from './routes/preferences'
 import { Route as NotificationsHistoryRouteImport } from './routes/notifications-history'
 import { Route as NotificationsRouteImport } from './routes/notifications'
@@ -22,6 +23,11 @@ import { Route as ProductIdRouteImport } from './routes/product.$id'
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PresentationsRoute = PresentationsRouteImport.update({
+  id: '/presentations',
+  path: '/presentations',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PreferencesRoute = PreferencesRouteImport.update({
@@ -73,6 +79,7 @@ export interface FileRoutesByFullPath {
   '/notifications': typeof NotificationsRoute
   '/notifications-history': typeof NotificationsHistoryRoute
   '/preferences': typeof PreferencesRoute
+  '/presentations': typeof PresentationsRoute
   '/settings': typeof SettingsRoute
   '/product/$id': typeof ProductIdRoute
 }
@@ -84,6 +91,7 @@ export interface FileRoutesByTo {
   '/notifications': typeof NotificationsRoute
   '/notifications-history': typeof NotificationsHistoryRoute
   '/preferences': typeof PreferencesRoute
+  '/presentations': typeof PresentationsRoute
   '/settings': typeof SettingsRoute
   '/product/$id': typeof ProductIdRoute
 }
@@ -96,6 +104,7 @@ export interface FileRoutesById {
   '/notifications': typeof NotificationsRoute
   '/notifications-history': typeof NotificationsHistoryRoute
   '/preferences': typeof PreferencesRoute
+  '/presentations': typeof PresentationsRoute
   '/settings': typeof SettingsRoute
   '/product/$id': typeof ProductIdRoute
 }
@@ -109,6 +118,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/notifications-history'
     | '/preferences'
+    | '/presentations'
     | '/settings'
     | '/product/$id'
   fileRoutesByTo: FileRoutesByTo
@@ -120,6 +130,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/notifications-history'
     | '/preferences'
+    | '/presentations'
     | '/settings'
     | '/product/$id'
   id:
@@ -131,6 +142,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/notifications-history'
     | '/preferences'
+    | '/presentations'
     | '/settings'
     | '/product/$id'
   fileRoutesById: FileRoutesById
@@ -143,6 +155,7 @@ export interface RootRouteChildren {
   NotificationsRoute: typeof NotificationsRoute
   NotificationsHistoryRoute: typeof NotificationsHistoryRoute
   PreferencesRoute: typeof PreferencesRoute
+  PresentationsRoute: typeof PresentationsRoute
   SettingsRoute: typeof SettingsRoute
   ProductIdRoute: typeof ProductIdRoute
 }
@@ -154,6 +167,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/presentations': {
+      id: '/presentations'
+      path: '/presentations'
+      fullPath: '/presentations'
+      preLoaderRoute: typeof PresentationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/preferences': {
@@ -223,6 +243,7 @@ const rootRouteChildren: RootRouteChildren = {
   NotificationsRoute: NotificationsRoute,
   NotificationsHistoryRoute: NotificationsHistoryRoute,
   PreferencesRoute: PreferencesRoute,
+  PresentationsRoute: PresentationsRoute,
   SettingsRoute: SettingsRoute,
   ProductIdRoute: ProductIdRoute,
 }

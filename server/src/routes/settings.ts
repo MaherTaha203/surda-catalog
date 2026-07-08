@@ -43,6 +43,23 @@ const settingsRoutes: FastifyPluginAsync = async (fastify) => {
           ? ''
           : String(body.defaultProductImageUrl);
     }
+    // Company Profile (single source of company identity). Trim + cap length so a
+    // stray paste can't bloat the row; all are plain strings.
+    const COMPANY_FIELDS = [
+      'companyName',
+      'companyTagline',
+      'companyPhone',
+      'companyWhatsapp',
+      'companyEmail',
+      'companyWebsite',
+      'companyAddress',
+    ] as const;
+    for (const field of COMPANY_FIELDS) {
+      if (field in body) {
+        const raw = body[field];
+        patch[field] = (raw === null || raw === undefined ? '' : String(raw)).slice(0, 300);
+      }
+    }
     if (Object.keys(patch).length === 0) {
       return reply
         .code(400)
