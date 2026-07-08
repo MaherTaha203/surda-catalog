@@ -31,17 +31,21 @@ export function HistoryDrawer({ open, onClose, onOpen, onDuplicate, onRegenerate
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   return (
-    <AnimatePresence>
-      {open && (
-        <>
+    <>
+      <AnimatePresence>
+        {open && (
           <motion.div
+            key="history-backdrop"
             className="fixed inset-0 z-40 bg-black/40"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
           />
+        )}
+        {open && (
           <motion.aside
+            key="history-drawer"
             className="fixed inset-y-0 left-0 z-50 w-full max-w-sm bg-background border-e border-border flex flex-col"
             initial={{ x: '-100%' }}
             animate={{ x: 0 }}
@@ -121,8 +125,8 @@ export function HistoryDrawer({ open, onClose, onOpen, onDuplicate, onRegenerate
             </div>
             <p className="px-4 py-2 text-[11px] text-muted-foreground border-t border-border">يُحفظ آخر 20 عرضاً فقط</p>
           </motion.aside>
-        </>
-      )}
+        )}
+      </AnimatePresence>
 
       <ConfirmDialog
         open={confirmClear}
@@ -148,6 +152,6 @@ export function HistoryDrawer({ open, onClose, onOpen, onDuplicate, onRegenerate
         }}
         onCancel={() => setConfirmDelete(null)}
       />
-    </AnimatePresence>
+    </>
   );
 }
