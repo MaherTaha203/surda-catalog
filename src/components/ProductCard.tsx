@@ -1,8 +1,9 @@
 import { Link } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
-import { Package, Plus, Check } from 'lucide-react';
+import { Package, Plus, Check, BadgePercent } from 'lucide-react';
 import type { Product } from '@/types/product';
 import { resolveThumbUrl } from '@/api/client';
+import { getOfferInfo } from '@/lib/offer';
 import { useDisplayPrefs, FONT_CLASSES } from '@/lib/display-prefs';
 
 interface ProductCardProps {
@@ -30,6 +31,10 @@ export function ProductCard({ product, index, showPrice, defaultImageUrl, catalo
   const { prefs } = useDisplayPrefs();
   const font = FONT_CLASSES[prefs.fontScale];
   const pickerMode = typeof onAdd === 'function';
+  // Offer derived from the real product fields (see lib/offer.ts) — the card
+  // surfaces a complete "buy X get Y free" deal; a bare offer price stays on the
+  // detail page so the card headline (carton price) never has to compete.
+  const offer = getOfferInfo(product);
 
   // A product without its own image falls back to the admin's default image.
   const fullUrl = product.imageUrl || defaultImageUrl;
@@ -86,16 +91,44 @@ export function ProductCard({ product, index, showPrice, defaultImageUrl, catalo
         <p className={`text-muted-foreground leading-relaxed mb-3 line-clamp-2 min-h-[3.25em] ${font.cardDesc}`}>
           {product.description || ' '}
         </p>
-        <div className="flex items-center justify-between gap-2 mt-auto min-h-7">
-          {product.size && (
-            <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
-              {product.size}
-            </span>
-          )}
-          {showPrice && (
-            <span className={`font-bold text-accent ml-auto ${font.cardPrice}`}>
-              ₪{Number(product.cartonPrice).toLocaleString('en-US')}
-            </span>
+        <div className="mt-auto space-y-1.5">
+          {/* Size chip + carton price (the primary financial element). The
+              "سعر الكرتونة" label sits above the number, aligned to the size
+              chip's baseline so the row height barely grows. */}
+          <div className="flex items-end justify-between gap-2 min-h-7">
+            {product.size ? (
+              <span className="self-center text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
+                {product.size}
+              </span>
+            ) : (
+              <span aria-hidden />
+            )}
+            {showPrice && (
+              <span className="text-left leading-tight shrink-0">
+                <span className="block text-[10px] font-medium text-muted-foreground">سعر الكرتونة</span>
+                <span className={`block font-extrabold text-accent ${font.cardPrice}`}>
+                  ₪{Number(product.cartonPrice).toLocaleString('en-US')}
+                </span>
+              </span>
+            )}
+          </div>
+          {/* Offer — shown ONLY for a complete "X + Y مجاناً" deal, never as an
+              empty box. Secondary to the carton price, but instantly scannable. */}
+          {showPrice && offer.hasBonusDeal && (
+            <div className="flex items-center justify-between gap-2 rounded-lg bg-accent/10 border border-accent/20 px-2 py-1">
+              <span className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+                <BadgePercent size={13} className="text-accent shrink-0" aria-hidden />
+                العرض
+              </span>
+              <span
+                dir="ltr"
+                className={`font-bold text-accent leading-none whitespace-nowrap ${font.cardOffer}`}
+              >
+                {Number(offer.offerQuantity).toLocaleString('en-US')} +{' '}
+                {Number(offer.bonusQuantity).toLocaleString('en-US')}
+                <span className="text-[9px] font-medium ml-0.5">مجاناً</span>
+              </span>
+            </div>
           )}
         </div>
       </div>

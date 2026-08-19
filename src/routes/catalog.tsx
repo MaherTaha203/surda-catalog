@@ -6,6 +6,7 @@ import { useProducts } from '@/hooks/useProducts';
 import { useCatalogSettings } from '@/hooks/useCatalogSettings';
 import { ProductCard } from '@/components/ProductCard';
 import { AdminPinDialog } from '@/components/AdminPinDialog';
+import { OfflineNotice } from '@/components/OfflineNotice';
 import { BrandMark } from '@/components/BrandMark';
 import { lockPin, unlockPin, unlockAdmin, isAdminUnlocked } from '@/lib/storage';
 import { useCompanyProfile } from '@/hooks/useCompanyProfile';
@@ -136,6 +137,9 @@ function CatalogPage() {
           </div>
         </div>
       </header>
+
+      {/* Quiet offline strip — appears only when the device is offline. */}
+      <OfflineNotice />
 
       {/* Search bar */}
       <div className="max-w-7xl mx-auto px-4 pt-4 pb-2">
