@@ -1,7 +1,7 @@
 // Bump this version whenever the caching strategy or precache list changes:
 // `activate` purges every cache that doesn't match, and skipWaiting + claim make
 // the new worker take over on the next load.
-const CACHE_NAME = 'sarda-catalog-v5';
+const CACHE_NAME = 'sarda-catalog-v6';
 const PRECACHE_URLS = [
   '/',
   '/catalog',
@@ -47,11 +47,9 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
 
-  // App shell (HTML navigations): CACHE-FIRST so the catalog opens instantly
-  // from the last local copy and never waits on the network — even on a slow or
-  // flaky connection — then quietly revalidates in the background.
+  // HTML navigations — see handleNavigation for the cache-first-per-route rule.
   if (event.request.mode === 'navigate') {
-    event.respondWith(cacheFirstShell(event));
+    event.respondWith(handleNavigation(event));
     return;
   }
 
@@ -71,23 +69,32 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(staleWhileRevalidate(event));
 });
 
-async function cacheFirstShell(event) {
+// Navigations (HTML documents). This app PRERENDERS a distinct SSR document per
+// route, so serving one route's HTML for a different route would cause a React
+// hydration mismatch. Strategy:
+//   • EXACT cached document → serve cache-first (precached '/' and '/catalog',
+//     plus any route visited before, open instantly — even offline), revalidate.
+//   • Not cached yet → fetch THIS route's real document from the network (correct
+//     HTML, no mismatch) and cache it; fall back to the app shell only when the
+//     network is unavailable (an unvisited route opened fully offline — rare).
+async function handleNavigation(event) {
   const cache = await caches.open(CACHE_NAME);
-  // Exact prerendered route HTML if we have it, else the SPA shell ('/').
-  const cached = (await cache.match(event.request)) || (await cache.match('/'));
-  const revalidate = fetch(event.request)
-    .then((response) => {
-      if (response.ok) return cache.put(event.request, response.clone()).then(() => response);
-      return response;
-    })
-    .catch(() => null);
-  if (cached) {
-    event.waitUntil(revalidate); // keep the worker alive to finish the update
-    return cached;
+  const exact = await cache.match(event.request);
+  if (exact) {
+    event.waitUntil(
+      fetch(event.request)
+        .then((r) => { if (r.ok) return cache.put(event.request, r.clone()); })
+        .catch(() => {}),
+    );
+    return exact;
   }
-  // Nothing cached yet (first-ever load): wait for the network, fall back to shell.
-  const network = await revalidate;
-  return network || (await cache.match('/')) || Response.error();
+  try {
+    const response = await fetch(event.request);
+    if (response.ok) event.waitUntil(cache.put(event.request, response.clone()));
+    return response;
+  } catch {
+    return (await cache.match('/catalog')) || (await cache.match('/')) || Response.error();
+  }
 }
 
 async function cacheFirstImage(event) {
