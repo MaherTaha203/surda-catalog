@@ -1,74 +1,65 @@
 import type { Product } from '@/types/product';
 
-const DB_NAME = 'sarda-catalog';
-const DB_VERSION = 1;
-const STORE_NAME = 'products';
+/**
+ * Local product snapshot — the "last known catalog", kept on the device so the
+ * app can paint products on the FIRST frame, before (and without waiting for)
+ * any network request. This is the heart of the local-first startup.
+ *
+ * Why localStorage (synchronous) instead of IndexedDB (async): the catalog is a
+ * few hundred text rows (image URLs only — the images themselves live in the
+ * browser/Service-Worker HTTP cache), which is a tiny payload well within the
+ * localStorage budget. A synchronous read lets react-query seed `initialData`
+ * on the very first render, so there is no async gap and no seed-vs-network
+ * race — the catalog is simply there. Writes are best-effort (wrapped) so a
+ * full or unavailable store never breaks the catalog.
+ */
+const SNAPSHOT_KEY = 'sarda_products_snapshot';
+const SYNCED_AT_KEY = 'sarda_products_synced_at';
 
-// One shared connection per page — opening a new IDBDatabase on every read
-// leaks connections (they are never closed) and adds open-latency to each call.
-let dbPromise: Promise<IDBDatabase> | null = null;
-
-function openDB(): Promise<IDBDatabase> {
-  if (dbPromise) return dbPromise;
-  dbPromise = new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onerror = () => {
-      dbPromise = null; // allow a retry on the next call
-      reject(request.error);
-    };
-    request.onsuccess = () => {
-      const db = request.result;
-      // If the browser closes the connection (storage pressure, another tab
-      // upgrading), drop the memo so the next call reopens cleanly.
-      db.onclose = () => {
-        dbPromise = null;
-      };
-      resolve(db);
-    };
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
-        store.createIndex('category', 'category', { unique: false });
-        store.createIndex('sortOrder', 'sortOrder', { unique: false });
-      }
-    };
-  });
-  return dbPromise;
+interface Snapshot {
+  products: Product[];
+  syncedAt: number;
 }
 
-export async function saveProductsToCache(products: Product[]): Promise<void> {
+/** Read the last saved catalog snapshot (sorted in the admin's order). */
+export function readProductsSnapshot(): Product[] {
+  if (typeof window === 'undefined') return [];
   try {
-    const db = await openDB();
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    store.clear();
-    for (const p of products) {
-      store.put(p);
-    }
-    return new Promise((resolve, reject) => {
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
+    const raw = localStorage.getItem(SNAPSHOT_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as Snapshot | Product[];
+    // Tolerate either the envelope or a bare array (forward/backward safe).
+    const products = Array.isArray(parsed) ? parsed : parsed.products;
+    if (!Array.isArray(products)) return [];
+    // getAll()-style stores don't guarantee order; restore the admin's catalog
+    // order so the offline catalog matches the online one.
+    return [...products].sort((a, b) => a.sortOrder - b.sortOrder);
   } catch {
-    // IndexedDB not available (e.g., SSR)
+    return [];
   }
 }
 
-export async function getCachedProducts(): Promise<Product[]> {
+/** Persist the freshly fetched catalog + the moment it was synced. */
+export function writeProductsSnapshot(products: Product[]): void {
+  if (typeof window === 'undefined') return;
+  const syncedAt = Date.now();
   try {
-    const db = await openDB();
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const store = tx.objectStore(STORE_NAME);
-    return new Promise((resolve, reject) => {
-      const request = store.getAll();
-      // getAll() returns rows in key (id) order — restore the admin's catalog
-      // order so the offline catalog matches the online one.
-      request.onsuccess = () =>
-        resolve((request.result || []).sort((a, b) => a.sortOrder - b.sortOrder));
-      request.onerror = () => reject(request.error);
-    });
+    localStorage.setItem(SNAPSHOT_KEY, JSON.stringify({ products, syncedAt } satisfies Snapshot));
+    localStorage.setItem(SYNCED_AT_KEY, String(syncedAt));
   } catch {
-    return [];
+    // Storage full or unavailable (private mode) — the in-memory query data
+    // still serves this session; we simply skip persisting for the next one.
+  }
+}
+
+/** Epoch millis of the last successful sync, or null if never synced. */
+export function getLastSyncedAt(): number | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(SYNCED_AT_KEY);
+    const n = raw ? Number(raw) : NaN;
+    return Number.isFinite(n) ? n : null;
+  } catch {
+    return null;
   }
 }

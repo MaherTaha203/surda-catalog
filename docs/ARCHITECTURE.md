@@ -39,8 +39,11 @@ Two Android tablets (installed PWA)        ┌───────────�
   - `products.ts` — typed functions: `listProducts`, `getProduct`, `createProduct`,
     `updateProduct`, `deleteProduct`, `setProductVisibility`, `setProductOrder`,
     `reorderProducts`, `uploadProductImage`.
-- **Offline:** product lists/details are cached in IndexedDB (`src/lib/offline-db.ts`); a
-  service worker (`public/sw.js`) is network-first for the API and cache-first for assets.
+- **Offline (local-first):** the catalog paints from a synchronous localStorage snapshot
+  (`src/lib/offline-db.ts`) on the first frame — seeded into react-query as `initialData` —
+  then revalidates in the background, so startup never waits on the network. The service
+  worker (`public/sw.js`) serves the app shell cache-first, product images (`/uploads/…`)
+  cache-first (never re-downloaded), and the dynamic API network-first.
 - **Access:** a client-side PIN gate (`src/lib/storage.ts`) — a display PIN to view, an
   admin PIN to manage. This is a soft gate, not real authentication (see KNOWN_LIMITATIONS).
 

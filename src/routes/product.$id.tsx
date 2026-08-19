@@ -11,12 +11,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, Package, PackageOpen, ZoomIn } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getProduct } from '@/api/products';
-import { getCachedProducts } from '@/lib/offline-db';
-import { fetchProducts, PRODUCTS_KEY } from '@/hooks/useProducts';
+import { readProductsSnapshot } from '@/lib/offline-db';
+import { fetchProducts, PRODUCTS_KEY, productsInitialData } from '@/hooks/useProducts';
 import { useCatalogSettings } from '@/hooks/useCatalogSettings';
 import { useDisplayPrefs, effectiveShowPrices, FONT_CLASSES } from '@/lib/display-prefs';
 import { ImageViewer } from '@/components/ImageViewer';
 import { resolveThumbUrl } from '@/api/client';
+import { getOfferInfo } from '@/lib/offer';
 import type { Product } from '@/types/product';
 // [notifications-feature] EXPERIMENTAL — remove this import, the validateSearch
 // `notif` field, and the <NotificationSourceBar/> block below to delete the feature.
@@ -27,10 +28,9 @@ async function fetchProduct(id: string): Promise<Product | null> {
     // Loads from the Fastify API (getProduct returns null on a 404).
     return await getProduct(id);
   } catch {
-    // API unavailable → fall back to the offline cache (populated by the
-    // catalog). Cached products already carry display-ready image URLs.
-    const cached = await getCachedProducts();
-    return cached.find((p) => p.id === id) ?? null;
+    // API unavailable → fall back to the local snapshot (populated by the
+    // catalog). Snapshot products already carry display-ready image URLs.
+    return readProductsSnapshot().find((p) => p.id === id) ?? null;
   }
 }
 
@@ -118,6 +118,9 @@ function ProductDetailPage() {
   const { data: allProducts } = useQuery({
     queryKey: PRODUCTS_KEY,
     queryFn: fetchProducts,
+    // Same local-first seed as the catalog, so swiping between products (and
+    // deep links) works offline without waiting on the network.
+    initialData: productsInitialData,
     staleTime: 30_000,
   });
   const defaultImage = settings.defaultProductImageUrl;
@@ -280,7 +283,10 @@ function ProductDetailPage() {
     );
   }
 
-  const hasOffer = Number(product.offerPrice) > 0;
+  // Same offer derivation as the catalog card (single source of truth): an offer
+  // is a special carton price and/or a complete "buy X get Y free" bonus deal.
+  const offer = getOfferInfo(product);
+  const hasOffer = offer.hasOfferPrice || offer.hasBonusDeal;
   const effectiveImage = product.imageUrl || defaultImage;
 
   return (
@@ -393,26 +399,40 @@ function ProductDetailPage() {
                         </p>
                       </div>
                       <div className="p-4">
-                        <p className="text-xs text-muted-foreground mb-1">سعر العرض</p>
-                        <p className={`font-extrabold text-accent ${font.detailPrice}`}>
-                          ₪{Number(product.offerPrice).toLocaleString('en-US')}
-                        </p>
-                        {(product.offerQuantity > 0 || product.bonusQuantity > 0) && (
-                          <p
-                            dir="ltr"
-                            className={`font-medium text-muted-foreground leading-tight mt-0.5 flex items-center justify-center gap-0.5 ${font.detailOffer}`}
-                          >
-                            <span>{Number(product.offerQuantity).toLocaleString('en-US')}</span>
-                            <span aria-hidden>×</span>
-                            <PackageOpen size={11} className="shrink-0" aria-hidden />
-                            {product.bonusQuantity > 0 && (
-                              <>
-                                <span className="mx-0.5" aria-hidden>+</span>
-                                <span>{Number(product.bonusQuantity).toLocaleString('en-US')}</span>
-                                <PackageOpen size={11} className="shrink-0 text-accent" aria-hidden />
-                              </>
+                        {offer.hasOfferPrice ? (
+                          <>
+                            <p className="text-xs text-muted-foreground mb-1">سعر العرض</p>
+                            <p className={`font-extrabold text-accent ${font.detailPrice}`}>
+                              ₪{Number(offer.offerPrice).toLocaleString('en-US')}
+                            </p>
+                            {offer.hasBonusInfo && (
+                              <p
+                                dir="ltr"
+                                className={`font-medium text-muted-foreground leading-tight mt-0.5 flex items-center justify-center gap-0.5 ${font.detailOffer}`}
+                              >
+                                <span>{Number(offer.offerQuantity).toLocaleString('en-US')}</span>
+                                <span aria-hidden>×</span>
+                                <PackageOpen size={11} className="shrink-0" aria-hidden />
+                                {offer.bonusQuantity > 0 && (
+                                  <>
+                                    <span className="mx-0.5" aria-hidden>+</span>
+                                    <span>{Number(offer.bonusQuantity).toLocaleString('en-US')}</span>
+                                    <PackageOpen size={11} className="shrink-0 text-accent" aria-hidden />
+                                  </>
+                                )}
+                              </p>
                             )}
-                          </p>
+                          </>
+                        ) : (
+                          /* Bonus-only deal (free units at the regular price) — no سعر عرض. */
+                          <>
+                            <p className="text-xs text-muted-foreground mb-1">العرض</p>
+                            <p dir="ltr" className={`font-extrabold text-accent ${font.detailPrice}`}>
+                              {Number(offer.offerQuantity).toLocaleString('en-US')} +{' '}
+                              {Number(offer.bonusQuantity).toLocaleString('en-US')}
+                              <span className="text-xs font-medium ml-1">مجاناً</span>
+                            </p>
+                          </>
                         )}
                       </div>
                     </div>

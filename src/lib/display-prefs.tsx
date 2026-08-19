@@ -98,6 +98,7 @@ export const FONT_CLASSES: Record<
     cardName: string;
     cardDesc: string;
     cardPrice: string;
+    cardOffer: string;
     cardBadge: string;
     categoryChip: string;
     detailName: string;
@@ -111,6 +112,7 @@ export const FONT_CLASSES: Record<
     cardName: 'text-sm',
     cardDesc: 'text-[11px]',
     cardPrice: 'text-base',
+    cardOffer: 'text-[11px]',
     cardBadge: 'text-[9px]',
     categoryChip: 'text-xs',
     detailName: 'text-xl',
@@ -123,6 +125,7 @@ export const FONT_CLASSES: Record<
     cardName: 'text-base',
     cardDesc: 'text-xs',
     cardPrice: 'text-lg',
+    cardOffer: 'text-xs',
     cardBadge: 'text-[10px]',
     categoryChip: 'text-sm',
     detailName: 'text-2xl',
@@ -135,6 +138,7 @@ export const FONT_CLASSES: Record<
     cardName: 'text-lg',
     cardDesc: 'text-sm',
     cardPrice: 'text-xl',
+    cardOffer: 'text-sm',
     cardBadge: 'text-xs',
     categoryChip: 'text-base',
     detailName: 'text-3xl',
