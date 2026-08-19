@@ -61,7 +61,14 @@ function CatalogPage() {
       (window.history.state as { __TSR_key?: string } | null)?.__TSR_key ?? '';
     const onScroll = () => {
       const key = entryKey();
-      if (key) sessionStorage.setItem(`sarda_catalog_scroll_${key}`, String(window.scrollY));
+      // sessionStorage can throw when storage is blocked — scroll memory is a
+      // nicety, never worth crashing the catalog for.
+      if (!key) return;
+      try {
+        sessionStorage.setItem(`sarda_catalog_scroll_${key}`, String(window.scrollY));
+      } catch {
+        /* storage unavailable — skip persisting scroll */
+      }
     };
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
@@ -73,7 +80,12 @@ function CatalogPage() {
     restoredScroll.current = true;
     const key = (window.history.state as { __TSR_key?: string } | null)?.__TSR_key;
     if (!key) return;
-    const saved = Number(sessionStorage.getItem(`sarda_catalog_scroll_${key}`) || 0);
+    let saved = 0;
+    try {
+      saved = Number(sessionStorage.getItem(`sarda_catalog_scroll_${key}`) || 0);
+    } catch {
+      /* storage unavailable — no saved position to restore */
+    }
     if (saved > 0) window.scrollTo({ top: saved });
   }, [isClient, isLoading, products.length]);
 
