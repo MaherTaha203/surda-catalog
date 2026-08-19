@@ -15,26 +15,44 @@ function makeDeviceId(): string {
   return `dev-${stamp}${rand}`;
 }
 
+const ALL_DEVICE_FALLBACK = 'all';
+
+// When Web Storage is blocked entirely, keep one ephemeral id for the session so
+// the app never crashes reading it (the device just won't be remembered across
+// reloads). Storage errors must degrade, never throw.
+let memoryDeviceId: string | null = null;
+
 /** Get (creating + persisting on first call) this browser's device_id. */
 export function getDeviceId(): string {
   if (typeof window === 'undefined') return ALL_DEVICE_FALLBACK;
-  let id = localStorage.getItem(DEVICE_ID_KEY);
-  if (!id) {
-    id = makeDeviceId();
-    localStorage.setItem(DEVICE_ID_KEY, id);
+  try {
+    let id = localStorage.getItem(DEVICE_ID_KEY);
+    if (!id) {
+      id = makeDeviceId();
+      localStorage.setItem(DEVICE_ID_KEY, id);
+    }
+    return id;
+  } catch {
+    if (!memoryDeviceId) memoryDeviceId = makeDeviceId();
+    return memoryDeviceId;
   }
-  return id;
 }
-
-const ALL_DEVICE_FALLBACK = 'all';
 
 /** The rep's chosen device name, or '' if not set yet. */
 export function getDeviceName(): string {
   if (typeof window === 'undefined') return '';
-  return localStorage.getItem(DEVICE_NAME_KEY) || '';
+  try {
+    return localStorage.getItem(DEVICE_NAME_KEY) || '';
+  } catch {
+    return '';
+  }
 }
 
 export function setDeviceNameLocal(name: string): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(DEVICE_NAME_KEY, name);
+  try {
+    localStorage.setItem(DEVICE_NAME_KEY, name);
+  } catch {
+    /* storage unavailable — name not persisted */
+  }
 }
