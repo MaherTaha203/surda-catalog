@@ -18,7 +18,7 @@ import { useDisplayPrefs, effectiveShowPrices, FONT_CLASSES } from '@/lib/displa
 import { ImageViewer } from '@/components/ImageViewer';
 import { resolveThumbUrl, fullImageCandidates } from '@/api/client';
 import { useImageFallback } from '@/hooks/useImageFallback';
-import { getOfferInfo } from '@/lib/offer';
+import { getOfferInfo, offerPriceText, offerQuantityText } from '@/lib/offer';
 import type { Product } from '@/types/product';
 // [notifications-feature] EXPERIMENTAL — remove this import, the validateSearch
 // `notif` field, and the <NotificationSourceBar/> block below to delete the feature.
@@ -294,9 +294,11 @@ function ProductDetailPage() {
   }
 
   // Same offer derivation as the catalog card (single source of truth): an offer
-  // is a special carton price and/or a complete "buy X get Y free" bonus deal.
+  // is a special carton price and/or a complete "buy X get Y bonus" deal.
   const offer = getOfferInfo(product);
-  const hasOffer = offer.hasOfferPrice || offer.hasBonusDeal;
+  const hasOffer = offer.hasOffer;
+  // The one quantity/bonus line ("10 + 2 بونص" or "10 كرتون"), identical to the card.
+  const offerQty = offerQuantityText(offer);
 
   return (
     <div className="min-h-dvh bg-background" dir="rtl">
@@ -413,23 +415,17 @@ function ProductDetailPage() {
                           <>
                             <p className="text-xs text-muted-foreground mb-1">سعر العرض</p>
                             <p className={`font-extrabold text-accent ${font.detailPrice}`}>
-                              ₪{Number(offer.offerPrice).toLocaleString('en-US')}
+                              {offerPriceText(offer)}
                             </p>
-                            {offer.hasBonusInfo && (
+                            {/* Quantity/bonus line — same "10 + 2 بونص" / "10 كرتون"
+                                text as the card; omitted when there's nothing
+                                complete to show (an offer price with no quantity). */}
+                            {offerQty && (
                               <p
                                 dir="ltr"
-                                className={`font-medium text-muted-foreground leading-tight mt-0.5 flex items-center justify-center gap-0.5 ${font.detailOffer}`}
+                                className={`font-semibold text-accent/90 leading-tight mt-0.5 ${font.detailOffer}`}
                               >
-                                <span>{Number(offer.offerQuantity).toLocaleString('en-US')}</span>
-                                <span aria-hidden>×</span>
-                                <PackageOpen size={11} className="shrink-0" aria-hidden />
-                                {offer.bonusQuantity > 0 && (
-                                  <>
-                                    <span className="mx-0.5" aria-hidden>+</span>
-                                    <span>{Number(offer.bonusQuantity).toLocaleString('en-US')}</span>
-                                    <PackageOpen size={11} className="shrink-0 text-accent" aria-hidden />
-                                  </>
-                                )}
+                                {offerQty}
                               </p>
                             )}
                           </>
@@ -438,9 +434,7 @@ function ProductDetailPage() {
                           <>
                             <p className="text-xs text-muted-foreground mb-1">العرض</p>
                             <p dir="ltr" className={`font-extrabold text-accent ${font.detailPrice}`}>
-                              {Number(offer.offerQuantity).toLocaleString('en-US')} +{' '}
-                              {Number(offer.bonusQuantity).toLocaleString('en-US')}
-                              <span className="text-xs font-medium ml-1">مجاناً</span>
+                              {offerQty}
                             </p>
                           </>
                         )}

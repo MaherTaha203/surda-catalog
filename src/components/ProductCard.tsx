@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Package, Plus, Check, BadgePercent } from 'lucide-react';
 import type { Product } from '@/types/product';
 import { resolveThumbUrl } from '@/api/client';
-import { getOfferInfo } from '@/lib/offer';
+import { getOfferInfo, offerPriceText, offerQuantityText } from '@/lib/offer';
 import { useDisplayPrefs, FONT_CLASSES } from '@/lib/display-prefs';
 
 interface ProductCardProps {
@@ -31,9 +31,10 @@ export function ProductCard({ product, index, showPrice, defaultImageUrl, catalo
   const { prefs } = useDisplayPrefs();
   const font = FONT_CLASSES[prefs.fontScale];
   const pickerMode = typeof onAdd === 'function';
-  // Offer derived from the real product fields (see lib/offer.ts) — the card
-  // surfaces a complete "buy X get Y free" deal; a bare offer price stays on the
-  // detail page so the card headline (carton price) never has to compete.
+  // Offer derived from the real product fields (see lib/offer.ts) — the SINGLE
+  // source of truth shared with the product detail. The card surfaces the offer
+  // price (سعر العرض) as a real price and the quantity/bonus line beneath it,
+  // using the exact same gate (offer.hasOffer) and formatter as the detail.
   const offer = getOfferInfo(product);
 
   // A product without its own image falls back to the admin's default image.
@@ -112,22 +113,42 @@ export function ProductCard({ product, index, showPrice, defaultImageUrl, catalo
               </span>
             )}
           </div>
-          {/* Offer — shown ONLY for a complete "X + Y مجاناً" deal, never as an
-              empty box. Secondary to the carton price, but instantly scannable. */}
-          {showPrice && offer.hasBonusDeal && (
-            <div className="flex items-center justify-between gap-2 rounded-lg bg-accent/10 border border-accent/20 px-2 py-1">
-              <span className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
-                <BadgePercent size={13} className="text-accent shrink-0" aria-hidden />
-                العرض
-              </span>
-              <span
-                dir="ltr"
-                className={`font-bold text-accent leading-none whitespace-nowrap ${font.cardOffer}`}
-              >
-                {Number(offer.offerQuantity).toLocaleString('en-US')} +{' '}
-                {Number(offer.bonusQuantity).toLocaleString('en-US')}
-                <span className="text-[9px] font-medium ml-0.5">مجاناً</span>
-              </span>
+          {/* Offer — shown ONLY when there is a real offer (a special price and/or
+              a complete "X + Y بونص" deal), never as an empty box. When a special
+              price exists it reads as a real price (سعر العرض ₪x) with the
+              quantity/bonus line beneath; a bonus-only deal stays a single compact
+              row. Same gate + formatter as the product detail. */}
+          {showPrice && offer.hasOffer && (
+            <div className="rounded-lg bg-accent/10 border border-accent/20 px-2.5 py-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+                  <BadgePercent size={13} className="text-accent shrink-0" aria-hidden />
+                  {offer.hasOfferPrice ? 'سعر العرض' : 'العرض'}
+                </span>
+                {offer.hasOfferPrice ? (
+                  <span className={`font-extrabold text-accent leading-none ${font.cardPrice}`}>
+                    {offerPriceText(offer)}
+                  </span>
+                ) : (
+                  /* Bonus-only deal → the "X + Y بونص" text takes the price slot. */
+                  <span
+                    dir="ltr"
+                    className={`font-bold text-accent leading-none whitespace-nowrap ${font.cardOffer}`}
+                  >
+                    {offerQuantityText(offer)}
+                  </span>
+                )}
+              </div>
+              {/* Quantity/bonus line beneath the offer price (omitted when there's
+                  nothing complete to show — e.g. an offer price with no quantity). */}
+              {offer.hasOfferPrice && offerQuantityText(offer) && (
+                <p
+                  dir="ltr"
+                  className={`text-left font-semibold text-accent/90 leading-tight mt-0.5 whitespace-nowrap ${font.cardOffer}`}
+                >
+                  {offerQuantityText(offer)}
+                </p>
+              )}
             </div>
           )}
         </div>

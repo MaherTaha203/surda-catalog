@@ -72,7 +72,22 @@ if (existsSync(assetsDir)) {
   if (stripped > 0) console.log(`[finalize] ✓ stripped ${stripped} stray external Google Font import(s)`)
 }
 
-if (!existsSync(join(DEST, 'index.html'))) {
+// SPA mode (vite.config.ts → tanstackStart.spa) renders the root path `/`
+// (spa.maskPath) into the route-agnostic SPA SHELL, emitted as `_shell.html`
+// instead of `index.html`. That shell is exactly what we want at `/` too: this
+// app is fully client-rendered (every route is client-gated), so `/` has no
+// server content to lose, and the shell hydrates cleanly on ANY url — including
+// `/` (the landing route then renders on the client and redirects as before).
+// Promote the shell to `index.html` so the static host has a root entry and the
+// SPA fallback document is served for `/` as well.
+const indexHtmlPath = join(DEST, 'index.html')
+const shellHtmlPath = join(DEST, '_shell.html')
+if (!existsSync(indexHtmlPath) && existsSync(shellHtmlPath)) {
+  cpSync(shellHtmlPath, indexHtmlPath)
+  console.log('[finalize] ✓ promoted _shell.html → index.html (SPA shell is the root entry)')
+}
+
+if (!existsSync(indexHtmlPath)) {
   console.error('[finalize] dist/index.html missing after flatten — build is not publishable')
   process.exit(1)
 }

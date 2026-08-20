@@ -48,8 +48,19 @@ const frontendPlugin: FastifyPluginAsync = async (fastify) => {
     index: ['index.html'],
   });
 
-  // Cache index.html once; it's the SPA shell for every client-side route.
-  const indexHtml = readFileSync(indexPath);
+  // The SPA fallback document for client-side routes that are NOT prerendered
+  // (dynamic routes like /product/:id, opened directly or refreshed).
+  //
+  // It MUST be the route-agnostic SPA SHELL (`_shell.html`), NOT the `/`
+  // prerender (`index.html`). `index.html` is the landing route's SSR output
+  // (it contains the landing spinner markup + the router state for `/`); serving
+  // it for /product/:id made the client hydrate the product route against the
+  // landing DOM → React #418 hydration mismatch. `_shell.html` renders the root
+  // layout with an EMPTY router outlet, so it hydrates identically on any URL and
+  // the client then resolves the real route — no mismatch. Falls back to
+  // index.html only if the shell is absent (e.g. an older build without SPA mode).
+  const shellPath = join(FRONTEND_DIST, '_shell.html');
+  const shellHtml = readFileSync(existsSync(shellPath) ? shellPath : indexPath);
 
   // SPA fallback: any unmatched GET that isn't an API path returns the app shell,
   // so deep links / client routes load. Specific API routes are matched before
@@ -60,7 +71,7 @@ const frontendPlugin: FastifyPluginAsync = async (fastify) => {
       (p) => url === p || url.startsWith(`${p}/`) || url.startsWith(`${p}?`),
     );
     if (request.method === 'GET' && !isApi) {
-      return reply.code(200).type('text/html').send(indexHtml);
+      return reply.code(200).type('text/html').send(shellHtml);
     }
     return reply
       .code(404)
