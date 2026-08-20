@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ZoomIn, ZoomOut, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { fullImageCandidates } from '@/api/client';
+import { useImageFallback } from '@/hooks/useImageFallback';
 
 interface ImageViewerProps {
   src: string;
@@ -35,6 +37,13 @@ export function ImageViewer({ src, alt, open, onClose, onNavigate, hasNext, hasP
   const pinchedDuringGesture = useRef(false);
 
   const resetZoom = useCallback(() => setScale(1), []);
+
+  // Same resilient chain as the detail hero: full → thumbnail. If the full image
+  // is missing/uncached, the (usually cached) thumbnail is shown instead of a
+  // broken image. The slide animation stays keyed on the base `src` (per product)
+  // so a fallback swap doesn't re-trigger it.
+  const candidates = useMemo(() => fullImageCandidates(src), [src]);
+  const image = useImageFallback(candidates);
 
   // Tab stays inside the viewer while it is open (close / nav / zoom buttons).
   useFocusTrap(containerRef, open);
@@ -240,7 +249,8 @@ export function ImageViewer({ src, alt, open, onClose, onNavigate, hasNext, hasP
           <AnimatePresence mode="popLayout" initial={false} custom={slideDir}>
             <motion.img
               key={src}
-              src={src}
+              src={image.src || undefined}
+              onError={image.onError}
               alt={alt}
               custom={slideDir}
               variants={{

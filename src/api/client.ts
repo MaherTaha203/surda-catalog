@@ -75,6 +75,20 @@ export function resolveThumbUrl(imageUrl: string): string {
     : resolved;
 }
 
+/**
+ * Ordered image sources to try for a product's MAIN (detail/viewer) image:
+ * the full image first (best quality), then the thumbnail as a fallback. The
+ * grid has usually already warmed the thumbnail in cache, so a full image that
+ * is missing on the server or not yet cached offline still shows something
+ * instead of the browser's broken-image marker. Empty input → no candidates.
+ * Deduped so a non-upload URL (no derivable thumb) yields a single entry.
+ */
+export function fullImageCandidates(url: string): string[] {
+  if (!url) return [];
+  const thumb = resolveThumbUrl(url);
+  return thumb && thumb !== url ? [url, thumb] : [url];
+}
+
 /** Convert a (possibly absolute) image URL back to the canonical relative form. */
 export function toStoredImageUrl(url: string): string {
   if (!url) return url;

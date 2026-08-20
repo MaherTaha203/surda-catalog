@@ -16,7 +16,8 @@ import { fetchProducts, PRODUCTS_KEY, productsInitialData } from '@/hooks/usePro
 import { useCatalogSettings } from '@/hooks/useCatalogSettings';
 import { useDisplayPrefs, effectiveShowPrices, FONT_CLASSES } from '@/lib/display-prefs';
 import { ImageViewer } from '@/components/ImageViewer';
-import { resolveThumbUrl } from '@/api/client';
+import { resolveThumbUrl, fullImageCandidates } from '@/api/client';
+import { useImageFallback } from '@/hooks/useImageFallback';
 import { getOfferInfo } from '@/lib/offer';
 import type { Product } from '@/types/product';
 // [notifications-feature] EXPERIMENTAL — remove this import, the validateSearch
@@ -243,6 +244,15 @@ function ProductDetailPage() {
     }
   }, [pagePrev, pageNext, defaultImage, queryClient]);
 
+  // Hero image with a resilient source chain: full → thumbnail → clean
+  // placeholder. The grid usually already warmed the thumbnail in cache, so a
+  // full image that is missing on the server or not yet cached never shows the
+  // browser's broken-image marker (which also leaks the alt text over the badge).
+  // Computed here — before the early returns — so the hook order stays stable.
+  const effectiveImage = product?.imageUrl || defaultImage;
+  const heroCandidates = useMemo(() => fullImageCandidates(effectiveImage), [effectiveImage]);
+  const heroImage = useImageFallback(heroCandidates);
+
   if (isLoading) {
     return (
       <div className="min-h-dvh bg-background" dir="rtl">
@@ -287,7 +297,6 @@ function ProductDetailPage() {
   // is a special carton price and/or a complete "buy X get Y free" bonus deal.
   const offer = getOfferInfo(product);
   const hasOffer = offer.hasOfferPrice || offer.hasBonusDeal;
-  const effectiveImage = product.imageUrl || defaultImage;
 
   return (
     <div className="min-h-dvh bg-background" dir="rtl">
@@ -326,17 +335,18 @@ function ProductDetailPage() {
             {/* Product image */}
             <button
               type="button"
-              disabled={!effectiveImage}
+              disabled={!heroImage.src}
               onClick={() => setViewerOpen(true)}
               aria-label="عرض الصورة بالحجم الكامل"
               className="group relative block w-full aspect-[4/3] rounded-2xl bg-muted overflow-hidden shadow-md disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
             >
-              {effectiveImage ? (
+              {heroImage.src ? (
                 <img
-                  src={effectiveImage}
+                  src={heroImage.src}
                   alt={product.name}
                   decoding="async"
                   fetchPriority="high"
+                  onError={heroImage.onError}
                   className="w-full h-full object-contain"
                 />
               ) : (
@@ -344,7 +354,7 @@ function ProductDetailPage() {
                   <Package size={64} strokeWidth={1} aria-hidden />
                 </div>
               )}
-              {effectiveImage && (
+              {heroImage.src && (
                 <>
                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity bg-foreground/10">
                     <span className="px-4 py-2 rounded-xl bg-background/90 text-sm font-medium shadow-sm backdrop-blur-sm">
@@ -452,7 +462,7 @@ function ProductDetailPage() {
       </div>
 
       {/* Image viewer */}
-      {effectiveImage && (
+      {heroImage.src && (
         <ImageViewer
           src={effectiveImage}
           alt={product.name}
