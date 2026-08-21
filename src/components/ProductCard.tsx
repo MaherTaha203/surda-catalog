@@ -110,25 +110,28 @@ export function ProductCard({ product, index, showPrice, defaultImageUrl, catalo
             )}
           </div>
           {/* Offer — shown ONLY when there is a real offer (a special price and/or
-              a complete bonus deal), never as an empty box. Everything is stacked
-              on the SAME side (right, RTL): the label, then the offer price, then
-              the quantity/bonus line ("10 كرتونة + 1 كرتونة بونص"). Same gate +
-              renderer as the product detail. */}
+              a complete bonus deal), never as an empty box. Layout: the offer
+              price is the headline on the right; the quantity/bonus sits beside it
+              on the left as a filled accent CHIP ("10 كرتونة + 2 كرتونة بونص"), so
+              the two read side by side and fill the width. Same gate + renderer as
+              the product detail. */}
           {showPrice && offer.hasOffer && (
-            <div className="rounded-lg bg-accent/10 border border-accent/20 px-2.5 py-1.5 text-right">
-              <div className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
-                <BadgePercent size={13} className="text-accent shrink-0" aria-hidden />
-                {offer.hasOfferPrice ? 'سعر العرض' : 'العرض'}
+            <div className={`rounded-lg bg-accent/10 border border-accent/20 px-2.5 py-1.5 flex items-center gap-2 ${offerQuantityParts(offer) ? 'justify-between' : 'justify-center'}`}>
+              <div className="text-right leading-tight shrink-0">
+                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+                  <BadgePercent size={13} className="text-accent shrink-0" aria-hidden />
+                  {offer.hasOfferPrice ? 'سعر العرض' : 'العرض'}
+                </span>
+                {offer.hasOfferPrice && (
+                  <span className={`block font-extrabold text-accent leading-none mt-0.5 ${font.cardPrice}`}>
+                    {offerPriceText(offer)}
+                  </span>
+                )}
               </div>
-              {offer.hasOfferPrice && (
-                <div className={`font-extrabold text-accent leading-none mt-0.5 ${font.cardPrice}`}>
-                  {offerPriceText(offer)}
-                </div>
-              )}
               {offerQuantityParts(offer) && (
                 <OfferQuantity
                   offer={offer}
-                  className={`block font-semibold text-accent/90 leading-snug mt-0.5 ${font.cardOffer}`}
+                  className={`rounded-lg bg-accent text-accent-foreground px-2 py-1 font-bold text-center leading-snug shadow-sm ${font.cardOffer}`}
                 />
               )}
             </div>
