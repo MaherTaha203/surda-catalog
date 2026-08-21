@@ -290,7 +290,7 @@ export function AdminProductForm({ open, editingProduct, productCount, onClose, 
                 className={inputClass} placeholder="0" />
             </div>
             <div>
-              <label htmlFor="pf-bonus-qty" className="block text-sm font-medium text-foreground mb-1.5">الكمية المجانية</label>
+              <label htmlFor="pf-bonus-qty" className="block text-sm font-medium text-foreground mb-1.5">كمية البونص</label>
               <input id="pf-bonus-qty" type="number" min="0" inputMode="numeric" value={form.bonusQuantity}
                 onChange={(e) => setForm({ ...form, bonusQuantity: e.target.value })}
                 className={inputClass} placeholder="0" />

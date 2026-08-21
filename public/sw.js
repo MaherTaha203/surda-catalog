@@ -1,10 +1,14 @@
 // Bump this version whenever the caching strategy or precache list changes:
 // `activate` purges every cache that doesn't match, and skipWaiting + claim make
 // the new worker take over on the next load.
-const CACHE_NAME = 'sarda-catalog-v6';
+const CACHE_NAME = 'sarda-catalog-v7';
 const PRECACHE_URLS = [
   '/',
   '/catalog',
+  // Route-agnostic SPA shell (empty router outlet). It is what the server returns
+  // for any non-prerendered client route (e.g. /product/:id); precaching it lets
+  // deep links open cleanly even fully offline, without a hydration mismatch.
+  '/_shell.html',
   '/manifest.json',
 ];
 
@@ -74,9 +78,17 @@ self.addEventListener('fetch', (event) => {
 // hydration mismatch. Strategy:
 //   • EXACT cached document → serve cache-first (precached '/' and '/catalog',
 //     plus any route visited before, open instantly — even offline), revalidate.
-//   • Not cached yet → fetch THIS route's real document from the network (correct
-//     HTML, no mismatch) and cache it; fall back to the app shell only when the
-//     network is unavailable (an unvisited route opened fully offline — rare).
+//   • Not cached yet → fetch THIS route's real document from the network (for a
+//     prerendered route that is its own document; for a dynamic route the server
+//     returns the route-agnostic SPA shell) and cache it; fall back to the app
+//     shell only when the network is unavailable (an unvisited route opened fully
+//     offline — rare).
+//
+// The offline fallback is the SPA shell (`/_shell.html`) — a route-agnostic
+// document with an empty router outlet, so it hydrates cleanly on ANY route. The
+// prerendered `/` and `/catalog` are route-SPECIFIC (landing spinner / catalog),
+// so using them as a generic fallback for a different route (e.g. /product/:id)
+// would reintroduce a hydration mismatch; the shell does not.
 async function handleNavigation(event) {
   const cache = await caches.open(CACHE_NAME);
   const exact = await cache.match(event.request);
@@ -93,7 +105,12 @@ async function handleNavigation(event) {
     if (response.ok) event.waitUntil(cache.put(event.request, response.clone()));
     return response;
   } catch {
-    return (await cache.match('/catalog')) || (await cache.match('/')) || Response.error();
+    return (
+      (await cache.match('/_shell.html')) ||
+      (await cache.match('/catalog')) ||
+      (await cache.match('/')) ||
+      Response.error()
+    );
   }
 }
 

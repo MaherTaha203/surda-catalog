@@ -26,6 +26,22 @@ export default defineConfig({
         // build → no dist/ → "404 NoSuchKey index.html" white screen. Skip + warn.
         failOnError: false,
       },
+      // SPA SHELL — the root fix for the React #418 hydration mismatch on deep
+      // links (e.g. opening/refreshing /product/:id directly). Dynamic routes
+      // are NOT prerendered (their data is per-id and comes from the API), so the
+      // static host must return SOME html for them. Previously that was the `/`
+      // prerender (the landing spinner); the client then hydrated the product
+      // route against the landing DOM → mismatch. This emits `dist/_shell.html`:
+      // a route-AGNOSTIC document that renders the root layout with an empty
+      // router outlet (no route-specific server markup). The client hydrates that
+      // same empty shell on ANY url, then resolves the real route on the client —
+      // no server/client divergence, so no #418. The real content still comes
+      // from the client exactly as before (every page here is already
+      // client-gated), so local-first / offline / speed are unchanged. The
+      // prerendered `/` and `/catalog` documents are still emitted for crawlers.
+      spa: {
+        enabled: true,
+      },
     }),
     viteReact(),
   ],
