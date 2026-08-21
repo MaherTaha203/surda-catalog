@@ -110,35 +110,25 @@ export function ProductCard({ product, index, showPrice, defaultImageUrl, catalo
             )}
           </div>
           {/* Offer — shown ONLY when there is a real offer (a special price and/or
-              a complete "X + Y بونص" deal), never as an empty box. When a special
-              price exists it reads as a real price (سعر العرض ₪x) with the
-              quantity/bonus line beneath; a bonus-only deal stays a single compact
-              row. Same gate + formatter as the product detail. */}
+              a complete bonus deal), never as an empty box. Everything is stacked
+              on the SAME side (right, RTL): the label, then the offer price, then
+              the quantity/bonus line ("10 كرتونة + 1 كرتونة بونص"). Same gate +
+              renderer as the product detail. */}
           {showPrice && offer.hasOffer && (
-            <div className="rounded-lg bg-accent/10 border border-accent/20 px-2.5 py-1.5">
-              <div className="flex items-center justify-between gap-2">
-                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
-                  <BadgePercent size={13} className="text-accent shrink-0" aria-hidden />
-                  {offer.hasOfferPrice ? 'سعر العرض' : 'العرض'}
-                </span>
-                {offer.hasOfferPrice ? (
-                  <span className={`font-extrabold text-accent leading-none ${font.cardPrice}`}>
-                    {offerPriceText(offer)}
-                  </span>
-                ) : (
-                  /* Bonus-only deal → the "10 + 1 بونص" text takes the price slot. */
-                  <OfferQuantity
-                    offer={offer}
-                    className={`font-bold text-accent leading-none whitespace-nowrap ${font.cardOffer}`}
-                  />
-                )}
+            <div className="rounded-lg bg-accent/10 border border-accent/20 px-2.5 py-1.5 text-right">
+              <div className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+                <BadgePercent size={13} className="text-accent shrink-0" aria-hidden />
+                {offer.hasOfferPrice ? 'سعر العرض' : 'العرض'}
               </div>
-              {/* Quantity/bonus line beneath the offer price (omitted when there's
-                  nothing complete to show — e.g. an offer price with no quantity). */}
-              {offer.hasOfferPrice && offerQuantityParts(offer) && (
+              {offer.hasOfferPrice && (
+                <div className={`font-extrabold text-accent leading-none mt-0.5 ${font.cardPrice}`}>
+                  {offerPriceText(offer)}
+                </div>
+              )}
+              {offerQuantityParts(offer) && (
                 <OfferQuantity
                   offer={offer}
-                  className={`block text-right font-semibold text-accent/90 leading-tight mt-0.5 whitespace-nowrap ${font.cardOffer}`}
+                  className={`block font-semibold text-accent/90 leading-snug mt-0.5 ${font.cardOffer}`}
                 />
               )}
             </div>
