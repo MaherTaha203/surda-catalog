@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createFileRoute, useNavigate, Link } from '@tanstack/react-router';
-import { motion } from 'framer-motion';
-import { Search, Lock, LogOut, Package, Droplets, Brush, SlidersHorizontal } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Search, Lock, LogOut, Package, Droplets, Brush, SlidersHorizontal, ArrowUp } from 'lucide-react';
 import { useProducts } from '@/hooks/useProducts';
 import { useCatalogSettings } from '@/hooks/useCatalogSettings';
 import { ProductCard } from '@/components/ProductCard';
@@ -39,6 +39,9 @@ function CatalogPage() {
   const adminMode = isAdminUnlocked();
   const isClient = useIsClient();
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
+  // "Back to top" affordance — shown once the user has scrolled a screenful down,
+  // so returning to the top of a long catalog is one tap instead of a long drag.
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
   const settings = useCatalogSettings();
   const { prefs } = useDisplayPrefs();
@@ -60,6 +63,8 @@ function CatalogPage() {
     const entryKey = () =>
       (window.history.state as { __TSR_key?: string } | null)?.__TSR_key ?? '';
     const onScroll = () => {
+      // Toggle the back-to-top button first, before any early return below.
+      setShowScrollTop(window.scrollY > 500);
       const key = entryKey();
       // sessionStorage can throw when storage is blocked — scroll memory is a
       // nicety, never worth crashing the catalog for.
@@ -248,6 +253,24 @@ function CatalogPage() {
           </div>
         )}
       </main>
+
+      {/* Back to top — appears after scrolling down a screenful; RTL: bottom-left. */}
+      <AnimatePresence>
+        {showScrollTop && (
+          <motion.button
+            type="button"
+            initial={{ opacity: 0, scale: 0.8, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 8 }}
+            transition={{ duration: 0.15 }}
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            aria-label="العودة إلى الأعلى"
+            className="fixed bottom-6 left-4 z-40 w-11 h-11 flex items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg hover:opacity-90 active:scale-95 transition-opacity"
+          >
+            <ArrowUp size={20} aria-hidden />
+          </motion.button>
+        )}
+      </AnimatePresence>
 
       <AdminPinDialog
         open={pinDialogOpen}

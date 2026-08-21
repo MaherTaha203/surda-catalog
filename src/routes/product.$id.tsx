@@ -18,7 +18,8 @@ import { useDisplayPrefs, effectiveShowPrices, FONT_CLASSES } from '@/lib/displa
 import { ImageViewer } from '@/components/ImageViewer';
 import { resolveThumbUrl, fullImageCandidates } from '@/api/client';
 import { useImageFallback } from '@/hooks/useImageFallback';
-import { getOfferInfo, offerPriceText, offerQuantityText } from '@/lib/offer';
+import { getOfferInfo, offerPriceText, offerQuantityParts } from '@/lib/offer';
+import { OfferQuantity } from '@/components/OfferQuantity';
 import type { Product } from '@/types/product';
 // [notifications-feature] EXPERIMENTAL — remove this import, the validateSearch
 // `notif` field, and the <NotificationSourceBar/> block below to delete the feature.
@@ -297,8 +298,10 @@ function ProductDetailPage() {
   // is a special carton price and/or a complete "buy X get Y bonus" deal.
   const offer = getOfferInfo(product);
   const hasOffer = offer.hasOffer;
-  // The one quantity/bonus line ("10 + 2 بونص" or "10 كرتون"), identical to the card.
-  const offerQty = offerQuantityText(offer);
+  // Whether there is a complete quantity/bonus line to render ("10 + 1 بونص" /
+  // "10 كرتون"). The visual is drawn by <OfferQuantity/> — the same shared,
+  // bidi-correct renderer the catalog card uses, so the two never diverge.
+  const hasOfferQty = offerQuantityParts(offer) !== null;
 
   return (
     <div className="min-h-dvh bg-background" dir="rtl">
@@ -417,25 +420,24 @@ function ProductDetailPage() {
                             <p className={`font-extrabold text-accent ${font.detailPrice}`}>
                               {offerPriceText(offer)}
                             </p>
-                            {/* Quantity/bonus line — same "10 + 2 بونص" / "10 كرتون"
-                                text as the card; omitted when there's nothing
-                                complete to show (an offer price with no quantity). */}
-                            {offerQty && (
-                              <p
-                                dir="ltr"
-                                className={`font-semibold text-accent/90 leading-tight mt-0.5 ${font.detailOffer}`}
-                              >
-                                {offerQty}
-                              </p>
+                            {/* Quantity/bonus line — same shared renderer as the card;
+                                omitted when there's nothing complete to show (an offer
+                                price with no quantity). */}
+                            {hasOfferQty && (
+                              <OfferQuantity
+                                offer={offer}
+                                className={`block font-semibold text-accent/90 leading-tight mt-0.5 ${font.detailOffer}`}
+                              />
                             )}
                           </>
                         ) : (
                           /* Bonus-only deal (free units at the regular price) — no سعر عرض. */
                           <>
                             <p className="text-xs text-muted-foreground mb-1">العرض</p>
-                            <p dir="ltr" className={`font-extrabold text-accent ${font.detailPrice}`}>
-                              {offerQty}
-                            </p>
+                            <OfferQuantity
+                              offer={offer}
+                              className={`block font-extrabold text-accent leading-tight ${font.detailPrice}`}
+                            />
                           </>
                         )}
                       </div>
