@@ -3,7 +3,8 @@ import { motion } from 'framer-motion';
 import { Package, Plus, Check, BadgePercent } from 'lucide-react';
 import type { Product } from '@/types/product';
 import { resolveThumbUrl } from '@/api/client';
-import { getOfferInfo, offerPriceText, offerQuantityText } from '@/lib/offer';
+import { getOfferInfo, offerPriceText, offerQuantityParts } from '@/lib/offer';
+import { OfferQuantity } from '@/components/OfferQuantity';
 import { useDisplayPrefs, FONT_CLASSES } from '@/lib/display-prefs';
 
 interface ProductCardProps {
@@ -66,11 +67,7 @@ export function ProductCard({ product, index, showPrice, defaultImageUrl, catalo
             <Package size={48} strokeWidth={1} aria-hidden />
           </div>
         )}
-        {/* Category badge */}
-        <span className={`absolute top-2 right-2 px-2.5 py-1 rounded-full font-medium bg-background/90 text-foreground shadow-sm backdrop-blur-sm ${font.cardBadge}`}>
-          {product.category}
-        </span>
-        {/* Picker add/added indicator (mirrors the category badge, opposite corner) */}
+        {/* Picker add/added indicator (top corner, only in the presentation builder) */}
         {pickerMode && (
           <span
             className={`absolute top-2 left-2 flex items-center justify-center w-8 h-8 rounded-full shadow-sm transition-colors ${
@@ -83,15 +80,14 @@ export function ProductCard({ product, index, showPrice, defaultImageUrl, catalo
         )}
       </div>
 
-      {/* Content — description space is always reserved (em-based, so it scales
-          with the font preference) so every card keeps identical dimensions */}
+      {/* Content — the card shows the FULL product name (no truncation) and no
+          description; the description lives on the product detail page. The price
+          block is pinned to the bottom (mt-auto) so it stays aligned across a row
+          regardless of how many lines the name takes. */}
       <div className="p-4 flex flex-col flex-1">
-        <h3 className={`font-bold text-foreground leading-tight mb-1 line-clamp-1 ${font.cardName}`}>
+        <h3 className={`font-bold text-foreground leading-snug break-words mb-3 ${font.cardName}`}>
           {product.name}
         </h3>
-        <p className={`text-muted-foreground leading-relaxed mb-3 line-clamp-2 min-h-[3.25em] ${font.cardDesc}`}>
-          {product.description || ' '}
-        </p>
         <div className="mt-auto space-y-1.5">
           {/* Size chip + carton price (the primary financial element). The
               "سعر الكرتونة" label sits above the number, aligned to the size
@@ -130,24 +126,20 @@ export function ProductCard({ product, index, showPrice, defaultImageUrl, catalo
                     {offerPriceText(offer)}
                   </span>
                 ) : (
-                  /* Bonus-only deal → the "X + Y بونص" text takes the price slot. */
-                  <span
-                    dir="ltr"
+                  /* Bonus-only deal → the "10 + 1 بونص" text takes the price slot. */
+                  <OfferQuantity
+                    offer={offer}
                     className={`font-bold text-accent leading-none whitespace-nowrap ${font.cardOffer}`}
-                  >
-                    {offerQuantityText(offer)}
-                  </span>
+                  />
                 )}
               </div>
               {/* Quantity/bonus line beneath the offer price (omitted when there's
                   nothing complete to show — e.g. an offer price with no quantity). */}
-              {offer.hasOfferPrice && offerQuantityText(offer) && (
-                <p
-                  dir="ltr"
-                  className={`text-left font-semibold text-accent/90 leading-tight mt-0.5 whitespace-nowrap ${font.cardOffer}`}
-                >
-                  {offerQuantityText(offer)}
-                </p>
+              {offer.hasOfferPrice && offerQuantityParts(offer) && (
+                <OfferQuantity
+                  offer={offer}
+                  className={`block text-right font-semibold text-accent/90 leading-tight mt-0.5 whitespace-nowrap ${font.cardOffer}`}
+                />
               )}
             </div>
           )}

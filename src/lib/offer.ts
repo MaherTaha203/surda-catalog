@@ -56,19 +56,39 @@ export function offerPriceText(offer: OfferInfo): string {
   return offer.hasOfferPrice ? `₪${fmt(offer.offerPrice)}` : '';
 }
 
+export interface OfferQuantityParts {
+  /** Numeric expression in Western digits, math order — e.g. "10 + 1" or "10". */
+  num: string;
+  /** Arabic unit word that follows the number — "بونص" or "كرتون". */
+  unit: string;
+}
+
 /**
- * The ONE quantity/bonus line shown beneath an offer — shared verbatim by the
- * catalog card and the product detail so the two surfaces can never diverge:
- *
- *   • complete bonus deal (quantity + bonus) → "10 + 2 بونص"
- *   • an offer price with a quantity, no bonus → "10 كرتون"
- *   • anything else (price only / incomplete data) → ""  (caller omits the line)
+ * The offer quantity/bonus split into its number + unit word, so a renderer can
+ * lay it out with correct bidirectionality: the Western digits stay in math
+ * order and the Arabic word follows them, the whole reading right→left in Arabic
+ * as "10 + 1 بونص".
+ *   • complete bonus deal → { num: "10 + 1", unit: "بونص" }
+ *   • offer price with a quantity, no bonus → { num: "10", unit: "كرتون" }
+ *   • anything else → null (nothing complete to show)
+ * Quantities are whole cartons, so the numbers are plain Western digits (never
+ * localized/grouped) — no chance of Arabic-Indic digits slipping in.
+ */
+export function offerQuantityParts(offer: OfferInfo): OfferQuantityParts | null {
+  if (offer.hasBonusDeal) return { num: `${offer.offerQuantity} + ${offer.bonusQuantity}`, unit: 'بونص' };
+  if (offer.hasOfferPrice && offer.offerQuantity > 0) return { num: `${offer.offerQuantity}`, unit: 'كرتون' };
+  return null;
+}
+
+/**
+ * The flat "10 + 1 بونص" string in logical/reading order — for aria labels,
+ * tests, and any non-visual use. The visual surfaces render <OfferQuantity/>
+ * instead, which lays the same parts out with correct RTL bidi.
  *
  * It never emits a bare "بونص", a "0 بونص", or an empty fragment: the term is
  * always paired with a real number, and an incomplete figure yields "".
  */
 export function offerQuantityText(offer: OfferInfo): string {
-  if (offer.hasBonusDeal) return `${fmt(offer.offerQuantity)} + ${fmt(offer.bonusQuantity)} بونص`;
-  if (offer.hasOfferPrice && offer.offerQuantity > 0) return `${fmt(offer.offerQuantity)} كرتون`;
-  return '';
+  const parts = offerQuantityParts(offer);
+  return parts ? `${parts.num} ${parts.unit}` : '';
 }
