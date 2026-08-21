@@ -420,13 +420,13 @@ function ProductDetailPage() {
                             <p className={`font-extrabold text-accent ${font.detailPrice}`}>
                               {offerPriceText(offer)}
                             </p>
-                            {/* Quantity/bonus line — same shared renderer as the card;
-                                omitted when there's nothing complete to show (an offer
-                                price with no quantity). */}
+                            {/* Bonus chip — same accent chip as the catalog card, so
+                                the two surfaces match; omitted when there's nothing
+                                complete to show (an offer price with no quantity). */}
                             {hasOfferQty && (
                               <OfferQuantity
                                 offer={offer}
-                                className={`block font-semibold text-accent/90 leading-tight mt-0.5 ${font.detailOffer}`}
+                                className={`inline-block rounded-lg bg-accent text-accent-foreground px-2 py-0.5 font-bold leading-snug mt-1.5 ${font.detailOffer}`}
                               />
                             )}
                           </>
@@ -436,7 +436,7 @@ function ProductDetailPage() {
                             <p className="text-xs text-muted-foreground mb-1">العرض</p>
                             <OfferQuantity
                               offer={offer}
-                              className={`block font-extrabold text-accent leading-tight ${font.detailPrice}`}
+                              className={`inline-block rounded-lg bg-accent text-accent-foreground px-2.5 py-1 font-bold leading-snug ${font.detailOffer}`}
                             />
                           </>
                         )}
