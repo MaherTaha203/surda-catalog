@@ -62,15 +62,25 @@ const frontendPlugin: FastifyPluginAsync = async (fastify) => {
   const shellPath = join(FRONTEND_DIST, '_shell.html');
   const shellHtml = readFileSync(existsSync(shellPath) ? shellPath : indexPath);
 
-  // SPA fallback: any unmatched GET that isn't an API path returns the app shell,
-  // so deep links / client routes load. Specific API routes are matched before
-  // this handler runs; unknown API paths still get a JSON 404.
+  // SPA fallback: an unmatched GET for a NAVIGATION route (extensionless, e.g.
+  // /catalog, /product/:id) returns the app shell so deep links / client routes
+  // load. It must NOT return the shell for a missing static ASSET (a hashed
+  // bundle under /assets/, or any path with a file extension): a request for a
+  // `.js` chunk that 404s would otherwise get `text/html` with a 200, and the
+  // browser's `import()` throws "'text/html' is not a valid JavaScript MIME type"
+  // (and a Service Worker could cache that HTML as the chunk). Such a request —
+  // typically a stale chunk hash after a redeploy — must get a real 404 so the
+  // import fails cleanly. API paths keep their JSON 404 as before.
+  const looksLikeAsset = (path: string): boolean =>
+    path.startsWith('/assets/') || /\.[a-z0-9]+$/i.test(path);
+
   fastify.setNotFoundHandler((request, reply) => {
     const url = request.raw.url ?? '';
+    const path = url.split(/[?#]/)[0];
     const isApi = API_PREFIXES.some(
       (p) => url === p || url.startsWith(`${p}/`) || url.startsWith(`${p}?`),
     );
-    if (request.method === 'GET' && !isApi) {
+    if (request.method === 'GET' && !isApi && !looksLikeAsset(path)) {
       return reply.code(200).type('text/html').send(shellHtml);
     }
     return reply

@@ -1,7 +1,7 @@
 // Bump this version whenever the caching strategy or precache list changes:
 // `activate` purges every cache that doesn't match, and skipWaiting + claim make
 // the new worker take over on the next load.
-const CACHE_NAME = 'sarda-catalog-v7';
+const CACHE_NAME = 'sarda-catalog-v8';
 const PRECACHE_URLS = [
   '/',
   '/catalog',

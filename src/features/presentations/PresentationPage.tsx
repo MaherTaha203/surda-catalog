@@ -242,7 +242,12 @@ export const PresentationPage = forwardRef<HTMLDivElement, Props>(function Prese
           flex: 1,
           display: 'grid',
           gridTemplateColumns: `repeat(${cols}, 1fr)`,
-          gridAutoRows: '1fr',
+          // Fix the grid to the number of rows a FULL page holds, so every card
+          // is the same (full-page) size regardless of how many products are on
+          // this page. Without this (gridAutoRows: 1fr) an under-filled page
+          // stretched its few rows to fill the whole sheet — giant cards with
+          // empty middles. Now a partial page just leaves its trailing rows empty.
+          gridTemplateRows: `repeat(${Math.max(1, Math.ceil(options.perPage / cols))}, 1fr)`,
           gap: compact ? 8 : 12,
           minHeight: 0,
         }}
