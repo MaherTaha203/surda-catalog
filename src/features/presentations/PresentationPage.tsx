@@ -94,7 +94,11 @@ function ProductCell({
       }}
     >
       {fields.image && (
-        <div style={{ position: 'relative', width: '100%', aspectRatio: '4 / 3', background: 'hsl(220 14% 96%)', flexShrink: 0 }}>
+        // The image fills whatever card height the text leaves. It must be the
+        // FLEXIBLE region (flex: 1 1 0, minHeight: 0) — a rigid aspect-ratio box
+        // with flexShrink: 0 overflowed the fixed-height grid cell and collapsed
+        // the (shrinkable) text below it to zero, hiding name/price/size entirely.
+        <div style={{ position: 'relative', width: '100%', flex: '1 1 0', minHeight: 0, background: 'hsl(220 14% 96%)' }}>
           {img ? (
             <img
               src={resolveImageUrl(img)}
@@ -121,7 +125,10 @@ function ProductCell({
           )}
         </div>
       )}
-      <div style={{ padding: compact ? '6px 8px' : '10px 12px', display: 'flex', flexDirection: 'column', gap: 3, flex: 1 }}>
+      {/* Details region — flexShrink: 0 so the name/price/size are ALWAYS laid
+          out at their natural height and never clipped by the card's overflow;
+          the image above absorbs the remaining space instead. */}
+      <div style={{ padding: compact ? '6px 8px' : '10px 12px', display: 'flex', flexDirection: 'column', gap: 3, flexShrink: 0 }}>
         {fields.name && (
           <div style={{ fontWeight: 700, color: BRAND.ink, fontSize: compact ? 12 : 15, lineHeight: 1.3 }}>
             {product.name}
