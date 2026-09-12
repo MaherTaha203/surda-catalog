@@ -14,7 +14,9 @@ import { getProduct } from '@/api/products';
 import { readProductsSnapshot } from '@/lib/offline-db';
 import { fetchProducts, PRODUCTS_KEY, productsInitialData } from '@/hooks/useProducts';
 import { useCatalogSettings } from '@/hooks/useCatalogSettings';
+import { useCompanyProfile } from '@/hooks/useCompanyProfile';
 import { useDisplayPrefs, effectiveShowPrices, FONT_CLASSES } from '@/lib/display-prefs';
+import { ProductSheetActions } from '@/features/product-sheet';
 import { ImageViewer } from '@/components/ImageViewer';
 import { resolveThumbUrl, fullImageCandidates } from '@/api/client';
 import { useImageFallback } from '@/hooks/useImageFallback';
@@ -86,6 +88,7 @@ function ProductDetailPage() {
   const [slideDir, setSlideDir] = useState<1 | -1>(1);
 
   const settings = useCatalogSettings();
+  const company = useCompanyProfile();
   const { prefs } = useDisplayPrefs();
   const font = FONT_CLASSES[prefs.fontScale];
   const showPrices = effectiveShowPrices(settings, prefs);
@@ -452,6 +455,15 @@ function ProductDetailPage() {
                     </div>
                   ))}
               </div>
+
+              {/* Print / PDF / Share — a complete, branded product sheet with
+                  every detail on one page. */}
+              <ProductSheetActions
+                product={product}
+                company={company}
+                showPrices={showPrices}
+                defaultImageUrl={defaultImage}
+              />
             </div>
           </motion.div>
         </AnimatePresence>
