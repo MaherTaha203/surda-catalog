@@ -96,6 +96,8 @@ CREATE TABLE IF NOT EXISTS order_items (
   productId TEXT NOT NULL,
   productNameSnapshot TEXT NOT NULL,
   quantity INTEGER NOT NULL CHECK (quantity > 0),
+  bonusCartons INTEGER NOT NULL DEFAULT 0 CHECK (bonusCartons >= 0),
+  bonusGallons INTEGER NOT NULL DEFAULT 0 CHECK (bonusGallons >= 0),
   sortOrder INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS order_mutations (
@@ -110,3 +112,9 @@ CREATE INDEX IF NOT EXISTS idx_orders_customer_updated ON orders(customerId, upd
 CREATE INDEX IF NOT EXISTS idx_orders_updated ON orders(updatedAt DESC);
 CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(orderId, sortOrder);
 `;
+
+/** Additive, backwards-compatible columns for bonus quantities on existing databases. */
+export const ORDER_ITEMS_MIGRATION_COLUMNS: { name: string; ddl: string }[] = [
+  { name: 'bonusCartons', ddl: 'ALTER TABLE order_items ADD COLUMN bonusCartons INTEGER NOT NULL DEFAULT 0' },
+  { name: 'bonusGallons', ddl: 'ALTER TABLE order_items ADD COLUMN bonusGallons INTEGER NOT NULL DEFAULT 0' },
+];
