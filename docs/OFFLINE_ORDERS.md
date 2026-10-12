@@ -24,5 +24,15 @@ The client must keep its durable local outbox until every mutation is explicitly
 ## Deployment caveat
 The backend uses SQLite and requires a persistent writable volume for `CATALOG_DB_PATH`. A stateless/ephemeral filesystem is not suitable for cross-device sync. Confirm persistent-volume configuration and backup/restore before production rollout.
 
-## Current scope boundary
-This commit provides the server-side data and synchronization foundation. It does not claim that offline browser storage, order-entry UI, or A4 print workflows are complete; those remain subsequent implementation and verification steps.
+## Frontend behavior currently implemented
+- The `/orders` page keeps customers, order drafts, order items and a mutation outbox in IndexedDB.
+- The catalog header links to order management. Product snapshot data is used as the offline fallback when the API cannot be reached.
+- Quantity changes and status changes are saved locally and queued for sync; retries are idempotent.
+- The A4 print view includes the customer, order number/date, product names and quantities only (no prices or totals). It prints the selected order, or the filtered order list if no order is selected.
+- Orders downloaded from the server are added locally unless a local pending mutation or unresolved conflict exists.
+
+## Verification and deployment limits
+- Automated tests cover idempotent retries, revision conflicts, positive quantities, product-name snapshots and sequential order numbering. The added GitHub Actions workflow runs frontend/backend type checks, frontend build and backend tests.
+- A green workflow result must be confirmed before calling this branch tested. This environment has not executed the build or tests itself.
+- The UI displays conflict state but does not yet provide a guided merge/resolution flow; conflicts remain queued for manual review.
+- Before production rollout, confirm the SQLite file is on persistent writable storage and test backup/restore on the actual host.
