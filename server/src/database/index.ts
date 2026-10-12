@@ -18,6 +18,7 @@ import {
   SETTINGS_TABLE_DDL,
   CUSTOMERS_TABLE_DDL,
   ORDERS_TABLE_DDL,
+  ORDER_ITEMS_MIGRATION_COLUMNS,
 } from './schema.ts';
 
 /** Absolute path to the SQLite file. Override with CATALOG_DB_PATH. */
