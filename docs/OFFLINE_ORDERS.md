@@ -34,5 +34,5 @@ The backend uses SQLite and requires a persistent writable volume for `CATALOG_D
 ## Verification and deployment limits
 - Automated tests cover idempotent retries, revision conflicts, positive quantities, product-name snapshots and sequential order numbering. The added GitHub Actions workflow runs frontend/backend type checks, frontend build and backend tests.
 - A green workflow result must be confirmed before calling this branch tested. This environment has not executed the build or tests itself.
-- The UI displays conflict state but does not yet provide a guided merge/resolution flow; conflicts remain queued for manual review.
+- Conflicts are displayed with explicit choices to keep the local version (re-queued against the server's current revision) or accept the server version. The app never silently applies last-write-wins.
 - Before production rollout, confirm the SQLite file is on persistent writable storage and test backup/restore on the actual host.
