@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 
 export interface CustomerInput { id: string; name: string; phone?: string; notes?: string; }
 export interface OrderItemInput { id: string; productId: string; productName: string; quantity: number; sortOrder?: number; }
+export interface SavedOrder { id:string; orderNumber:number|null; customerId:string; customerNameSnapshot:string; status:'draft'|'submitted'|'cancelled'; revision:number; lastMutationId:string; lastDeviceId:string; createdAt:string; updatedAt:string; items:{id:string;productId:string;productName:string;quantity:number;sortOrder:number}[]; }
 export interface OrderMutation {
   mutationId: string;
   deviceId: string;
@@ -27,14 +28,14 @@ export class OrdersService {
       .run(input.id,name,input.phone?.trim()??'',input.notes?.trim()??'',now,now);
     return this.stmt('SELECT id,name,phone,notes,isActive,createdAt,updatedAt FROM customers WHERE id=?').get(input.id);
   }
-  listOrders(query: { customerId?: string; from?: string; to?: string; search?: string } = {}) {
+  listOrders(query: { customerId?: string; from?: string; to?: string; search?: string } = {}): SavedOrder[] {
     const clauses:string[]=[]; const args: (string|number)[]=[];
     if(query.customerId){clauses.push('o.customerId=?');args.push(query.customerId);}
     if(query.from){clauses.push('substr(o.updatedAt,1,10)>=?');args.push(query.from);}
     if(query.to){clauses.push('substr(o.updatedAt,1,10)<=?');args.push(query.to);}
     if(query.search){clauses.push('(o.customerNameSnapshot LIKE ? OR CAST(o.orderNumber AS TEXT) LIKE ?)');args.push(`%${query.search}%`,`%${query.search}%`);}
-    const rows=this.stmt(`SELECT o.* FROM orders o ${clauses.length?'WHERE '+clauses.join(' AND '):''} ORDER BY o.updatedAt DESC`).all(...args) as Record<string,any>[];
-    return rows.map(row=>({...row,items:this.stmt('SELECT id,productId,productNameSnapshot AS productName,quantity,sortOrder FROM order_items WHERE orderId=? ORDER BY sortOrder,id').all(row.id)}));
+    const rows=this.stmt(`SELECT o.* FROM orders o ${clauses.length?'WHERE '+clauses.join(' AND '):''} ORDER BY o.updatedAt DESC`).all(...args) as unknown as Omit<SavedOrder,'items'>[];
+    return rows.map(row=>({...row,items:this.stmt('SELECT id,productId,productNameSnapshot AS productName,quantity,sortOrder FROM order_items WHERE orderId=? ORDER BY sortOrder,id').all(row.id) as unknown as SavedOrder['items']}));
   }
   applyMutation(m: OrderMutation) {
     if(!m.mutationId?.trim() || !m.deviceId?.trim() || !m.order?.id?.trim() || !m.order.customerId?.trim()) throw new Error('INVALID_MUTATION');
@@ -57,9 +58,9 @@ export class OrdersService {
       return {status:'applied' as const,order:this.getOrder(m.order.id)};
     });
   }
-  getOrder(id:string) {
-    const row=this.stmt('SELECT * FROM orders WHERE id=?').get(id) as Record<string,any>|undefined;
+  getOrder(id:string): SavedOrder|null {
+    const row=this.stmt('SELECT * FROM orders WHERE id=?').get(id) as unknown as Omit<SavedOrder,'items'>|undefined;
     if(!row)return null;
-    return {...row,items:this.stmt('SELECT id,productId,productNameSnapshot AS productName,quantity,sortOrder FROM order_items WHERE orderId=? ORDER BY sortOrder,id').all(id)};
+    return {...row,items:this.stmt('SELECT id,productId,productNameSnapshot AS productName,quantity,sortOrder FROM order_items WHERE orderId=? ORDER BY sortOrder,id').all(id) as unknown as SavedOrder['items']};
   }
 }
