@@ -120,6 +120,7 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
+    | '/orders'
     | '/'
     | '/admin'
     | '/catalog'
@@ -132,6 +133,7 @@ export interface FileRouteTypes {
     | '/product/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/orders'
     | '/'
     | '/admin'
     | '/catalog'
@@ -144,6 +146,7 @@ export interface FileRouteTypes {
     | '/product/$id'
   id:
     | '__root__'
+    | '/orders'
     | '/'
     | '/admin'
     | '/catalog'
@@ -226,6 +229,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/orders': {
+      id: '/orders'
+      path: '/orders'
+      fullPath: '/orders'
+      preLoaderRoute: typeof OrdersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
