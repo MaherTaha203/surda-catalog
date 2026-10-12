@@ -62,3 +62,51 @@ export const PRODUCTS_MIGRATION_COLUMNS: { name: string; ddl: string }[] = [
   { name: 'offerQuantity', ddl: 'ALTER TABLE products ADD COLUMN offerQuantity INTEGER NOT NULL DEFAULT 0' },
   { name: 'bonusQuantity', ddl: 'ALTER TABLE products ADD COLUMN bonusQuantity INTEGER NOT NULL DEFAULT 0' },
 ];
+
+
+/** Order-taking domain; intentionally separate from catalog product records. */
+export const CUSTOMERS_TABLE_DDL = `
+CREATE TABLE IF NOT EXISTS customers (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL CHECK (length(trim(name)) > 0),
+  phone TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  isActive INTEGER NOT NULL DEFAULT 1 CHECK (isActive IN (0, 1)),
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT NOT NULL
+);
+`;
+
+export const ORDERS_TABLE_DDL = `
+CREATE TABLE IF NOT EXISTS orders (
+  id TEXT PRIMARY KEY,
+  orderNumber INTEGER UNIQUE,
+  customerId TEXT NOT NULL REFERENCES customers(id),
+  customerNameSnapshot TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'submitted', 'cancelled')),
+  revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0),
+  lastMutationId TEXT NOT NULL,
+  lastDeviceId TEXT NOT NULL,
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS order_items (
+  id TEXT PRIMARY KEY,
+  orderId TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  productId TEXT NOT NULL,
+  productNameSnapshot TEXT NOT NULL,
+  quantity INTEGER NOT NULL CHECK (quantity > 0),
+  sortOrder INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS order_mutations (
+  mutationId TEXT PRIMARY KEY,
+  orderId TEXT NOT NULL,
+  deviceId TEXT NOT NULL,
+  revision INTEGER NOT NULL,
+  receivedAt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_customers_active_name ON customers(isActive, name COLLATE NOCASE);
+CREATE INDEX IF NOT EXISTS idx_orders_customer_updated ON orders(customerId, updatedAt DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_updated ON orders(updatedAt DESC);
+CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(orderId, sortOrder);
+`;
