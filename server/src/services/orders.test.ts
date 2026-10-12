@@ -21,7 +21,7 @@ describe('OrdersService offline sync contract', () => {
     close();
     rmSync(dir, { recursive: true, force: true });
   });
-  const mutation = (overrides: Record<string, unknown> = {}) => ({
+  const mutation = (overrides: { mutationId?: string; deviceId?: string; baseRevision?: number; order?: { id: string; customerId: string; customerName: string; status: 'draft'|'submitted'|'cancelled'; items: { id: string; productId: string; productName: string; quantity: number; sortOrder?: number }[] } } = {}) => ({
     mutationId: 'mutation-1', deviceId: 'device-1', baseRevision: 0,
     order: { id: 'order-1', customerId: 'customer-1', customerName: 'زبون اختبار', status: 'draft' as const,
       items: [{ id: 'item-1', productId: 'product-1', productName: 'صنف تاريخي', quantity: 2, sortOrder: 0 }] },
