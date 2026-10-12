@@ -51,7 +51,7 @@ describe('OrdersService offline sync contract', () => {
   });
   it('assigns unique sequential order numbers for different clients', () => {
     service.applyMutation(mutation());
-    service.applyMutation(mutation({ mutationId: 'mutation-2', order: { ...mutation().order, id: 'order-2' } }));
+    service.applyMutation(mutation({ mutationId: 'mutation-2', order: { ...mutation().order, id: 'order-2', items: [{ ...mutation().order.items[0]!, id: 'item-2' }] } }));
     assert.deepEqual(service.listOrders().map(o => o.orderNumber).sort(), [1, 2]);
   });
 });
