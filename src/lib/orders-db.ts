@@ -1,6 +1,6 @@
 export type OrderStatus='draft'|'submitted'|'cancelled';
 export interface LocalCustomer{id:string;name:string;phone:string;notes:string;isActive:boolean;createdAt:string;updatedAt:string}
-export interface LocalOrderItem{id:string;productId:string;productName:string;quantity:number;sortOrder:number}
+export interface LocalOrderItem{id:string;productId:string;productName:string;quantity:number;bonusCartons?:number;bonusGallons?:number;sortOrder:number}
 export interface LocalOrder{id:string;orderNumber?:number;customerId:string;customerName:string;status:OrderStatus;revision:number;items:LocalOrderItem[];createdAt:string;updatedAt:string;syncState:'local'|'synced'|'conflict';conflict?:unknown}
 export interface PendingMutation{mutationId:string;deviceId:string;baseRevision:number;order:{id:string;customerId:string;customerName:string;status:OrderStatus;items:LocalOrderItem[];createdAt:string;updatedAt:string}}
 const DB_NAME='sarda-orders-v1';let connection:Promise<IDBDatabase>|undefined;
