@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { initDatabase } from '../database/index.ts';
-import { OrdersService } from './orders.ts';
+import { OrdersService, type OrderMutation } from './orders.ts';
 
 describe('OrdersService offline sync contract', () => {
   let dir: string;
@@ -21,11 +21,10 @@ describe('OrdersService offline sync contract', () => {
     close();
     rmSync(dir, { recursive: true, force: true });
   });
-  const mutation = (overrides: { mutationId?: string; deviceId?: string; baseRevision?: number; order?: { id: string; customerId: string; customerName: string; status: 'draft'|'submitted'|'cancelled'; items: { id: string; productId: string; productName: string; quantity: number; sortOrder?: number }[] } } = {}) => ({
-    mutationId: 'mutation-1', deviceId: 'device-1', baseRevision: 0,
-    order: { id: 'order-1', customerId: 'customer-1', customerName: 'زبون اختبار', status: 'draft' as const,
+  const mutation = (overrides: { mutationId?: string; deviceId?: string; baseRevision?: number; order?: OrderMutation['order'] } = {}): OrderMutation => ({
+    mutationId: overrides.mutationId ?? 'mutation-1', deviceId: overrides.deviceId ?? 'device-1', baseRevision: overrides.baseRevision ?? 0,
+    order: overrides.order ?? { id: 'order-1', customerId: 'customer-1', customerName: 'زبون اختبار', status: 'draft',
       items: [{ id: 'item-1', productId: 'product-1', productName: 'صنف تاريخي', quantity: 2, sortOrder: 0 }] },
-    ...overrides,
   });
   it('applies a new order once and keeps the product-name snapshot', () => {
     const first = service.applyMutation(mutation());
