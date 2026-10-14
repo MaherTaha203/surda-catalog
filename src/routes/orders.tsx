@@ -1388,12 +1388,16 @@ function PrintStyles() {
         #print-sheet, #print-sheet * { visibility: visible !important; }
         #print-sheet { display: block !important; position: absolute; top: 0; right: 0; width: 100%; }
         .no-print { display: none !important; }
-        .print-order { break-inside: avoid; page-break-inside: avoid; border: 1px solid #999; border-radius: 6px; padding: 10px 12px; margin: 0 0 10px; }
-        .print-order h2 { font-size: 13pt; margin: 0 0 4px; }
-        .print-order p { margin: 1px 0; font-size: 9.5pt; color: #333; }
-        .print-order table { width: 100%; border-collapse: collapse; margin-top: 6px; }
-        .print-order th, .print-order td { text-align: right; border-bottom: 1px solid #ccc; padding: 4px 6px; font-size: 9.5pt; }
-        .print-order th { border-bottom: 1.5px solid #666; }
+        .print-order { break-inside: avoid; page-break-inside: avoid; border: 1px solid #999; border-radius: 6px; padding: 8px 11px; margin: 0 0 8px; }
+        .print-order .phead { display: flex; align-items: baseline; gap: 10px; border-bottom: 1px solid #999; padding-bottom: 4px; margin-bottom: 4px; }
+        .print-order .phead .pnum { font-weight: 700; font-size: 12pt; white-space: nowrap; }
+        .print-order .phead .pcust { font-weight: 800; font-size: 14pt; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+        .print-order .phead .pdate { margin-inline-start: auto; font-size: 10pt; color: #555; white-space: nowrap; }
+        .print-order table { width: 100%; border-collapse: collapse; margin-top: 2px; }
+        .print-order th, .print-order td { text-align: right; border-bottom: 1px solid #ccc; padding: 3px 6px; font-size: 10pt; }
+        .print-order th { border-bottom: 1.5px solid #666; font-size: 9pt; color: #555; }
+        .print-order td.pname { font-weight: 700; font-size: 11pt; }
+        .print-order td.pqty { font-weight: 800; font-size: 11pt; }
         .print-order thead { display: table-header-group; }
       }
     `}</style>
@@ -1405,9 +1409,11 @@ function PrintSheet({ orders }: { orders: LocalOrder[] }) {
     <section id="print-sheet" dir="rtl" className="hidden">
       {orders.map((o) => (
         <article key={o.id} className="print-order">
-          <h2>شركة سردا — طلبية {o.orderNumber ? '#' + o.orderNumber : 'محلية'}</h2>
-          <p>الزبون: {o.customerName || 'غير محدد'}</p>
-          <p>التاريخ: {fmtDate(o.createdAt)}</p>
+          <div className="phead">
+            <span className="pnum">طلبية {o.orderNumber ? '#' + o.orderNumber : 'محلية'}</span>
+            <span className="pcust">{o.customerName || 'غير محدد'}</span>
+            <span className="pdate">{fmtDate(o.createdAt)}</span>
+          </div>
           <table>
             <thead>
               <tr>
@@ -1420,8 +1426,8 @@ function PrintSheet({ orders }: { orders: LocalOrder[] }) {
             <tbody>
               {o.items.map((i) => (
                 <tr key={i.id}>
-                  <td>{i.productName}</td>
-                  <td>{i.quantity}</td>
+                  <td className="pname">{i.productName}</td>
+                  <td className="pqty">{i.quantity}</td>
                   <td>{i.bonusCartons || 0}</td>
                   <td>{i.bonusGallons || 0}</td>
                 </tr>
