@@ -472,8 +472,9 @@ function OrdersPage() {
   // Render
   // ──────────────────────────────────────────────────────────────────────────
   return (
-    <main dir="rtl" className="min-h-dvh bg-background text-foreground">
-      <PrintStyles />
+    <>
+    <PrintStyles />
+    <main dir="rtl" className="orders-main min-h-dvh bg-background text-foreground">
 
       {/* Top app bar */}
       <header className="no-print sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur">
@@ -623,9 +624,10 @@ function OrdersPage() {
         />
       )}
 
-      {/* Hidden print surface — shared by entry and review */}
-      <PrintSheet orders={printOrders} />
     </main>
+    {/* Hidden print surface — sibling of <main> so it paginates in normal flow */}
+    <PrintSheet orders={printOrders} />
+    </>
   );
 }
 
@@ -1383,22 +1385,31 @@ function PrintStyles() {
   return (
     <style>{`
       @page { size: A4; margin: 10mm; }
+      #print-sheet { display: none; }
       @media print {
-        body * { visibility: hidden !important; }
-        #print-sheet, #print-sheet * { visibility: visible !important; }
-        #print-sheet { display: block !important; position: absolute; top: 0; right: 0; width: 100%; }
+        /* Hide the live app; show only the print surface, kept in normal flow so
+           long orders split across A4 pages instead of being clipped. */
+        .orders-main { display: none !important; }
+        #print-sheet { display: block !important; }
         .no-print { display: none !important; }
-        .print-order { break-inside: avoid; page-break-inside: avoid; border: 1px solid #999; border-radius: 6px; padding: 8px 11px; margin: 0 0 8px; }
-        .print-order .phead { display: flex; align-items: baseline; gap: 10px; border-bottom: 1px solid #999; padding-bottom: 4px; margin-bottom: 4px; }
+
+        /* An order may span several pages; allow the break but never split a row. */
+        .print-order { break-inside: auto; border: 1px solid #999; border-radius: 6px; padding: 8px 11px; margin: 0 0 8px; }
+        .print-order table { width: 100%; border-collapse: collapse; }
+        .print-order tr { break-inside: avoid; page-break-inside: avoid; }
+
+        /* thead reprints on every page the table spans → the order's header
+           info (number + customer) and the column titles repeat on each page. */
+        .print-order thead { display: table-header-group; }
+        .print-order thead .phead-cell { padding: 0 0 5px; border-bottom: 1.5px solid #666; }
+        .print-order .phead { display: flex; align-items: baseline; gap: 10px; }
         .print-order .phead .pnum { font-weight: 700; font-size: 12pt; white-space: nowrap; }
         .print-order .phead .pcust { font-weight: 800; font-size: 14pt; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
         .print-order .phead .pdate { margin-inline-start: auto; font-size: 10pt; color: #555; white-space: nowrap; }
-        .print-order table { width: 100%; border-collapse: collapse; margin-top: 2px; }
-        .print-order th, .print-order td { text-align: right; border-bottom: 1px solid #ccc; padding: 3px 6px; font-size: 10pt; }
-        .print-order th { border-bottom: 1.5px solid #666; font-size: 9pt; color: #555; }
-        .print-order td.pname { font-weight: 700; font-size: 11pt; }
-        .print-order td.pqty { font-weight: 800; font-size: 11pt; }
-        .print-order thead { display: table-header-group; }
+        .print-order thead .pcol { text-align: right; border-bottom: 1px solid #999; padding: 3px 6px; font-size: 9pt; color: #555; font-weight: 700; }
+        .print-order tbody td { text-align: right; border-bottom: 1px solid #ccc; padding: 3px 6px; font-size: 10pt; }
+        .print-order tbody td.pname { font-weight: 700; font-size: 11pt; }
+        .print-order tbody td.pqty { font-weight: 800; font-size: 11pt; }
       }
     `}</style>
   );
@@ -1409,18 +1420,22 @@ function PrintSheet({ orders }: { orders: LocalOrder[] }) {
     <section id="print-sheet" dir="rtl" className="hidden">
       {orders.map((o) => (
         <article key={o.id} className="print-order">
-          <div className="phead">
-            <span className="pnum">طلبية {o.orderNumber ? '#' + o.orderNumber : 'محلية'}</span>
-            <span className="pcust">{o.customerName || 'غير محدد'}</span>
-            <span className="pdate">{fmtDate(o.createdAt)}</span>
-          </div>
           <table>
             <thead>
               <tr>
-                <th>الصنف</th>
-                <th>الكمية</th>
-                <th>بونص كراتين</th>
-                <th>بونص جالونات</th>
+                <th className="phead-cell" colSpan={4}>
+                  <div className="phead">
+                    <span className="pnum">طلبية {o.orderNumber ? '#' + o.orderNumber : 'محلية'}</span>
+                    <span className="pcust">{o.customerName || 'غير محدد'}</span>
+                    <span className="pdate">{fmtDate(o.createdAt)}</span>
+                  </div>
+                </th>
+              </tr>
+              <tr>
+                <th className="pcol">الصنف</th>
+                <th className="pcol">الكمية</th>
+                <th className="pcol">بونص كراتين</th>
+                <th className="pcol">بونص جالونات</th>
               </tr>
             </thead>
             <tbody>
