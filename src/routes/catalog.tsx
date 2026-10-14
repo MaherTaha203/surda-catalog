@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createFileRoute, useNavigate, Link } from '@tanstack/react-router';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Lock, LogOut, Package, Droplets, Brush, SlidersHorizontal, ArrowUp, ClipboardList } from 'lucide-react';
+import { Search, Lock, LogOut, Package, Droplets, Brush, SlidersHorizontal, ArrowUp } from 'lucide-react';
 import { useProducts } from '@/hooks/useProducts';
 import { useCatalogSettings } from '@/hooks/useCatalogSettings';
 import { ProductCard } from '@/components/ProductCard';
@@ -123,7 +123,6 @@ function CatalogPage() {
 
             {/* Actions */}
             <div className="flex items-center gap-1">
-              <Link to="/orders" aria-label="إدارة الطلبيات" title="إدارة الطلبيات" className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"><ClipboardList size={18} /></Link>
               {/* [notifications-feature] EXPERIMENTAL — tiny bell + unread badge. */}
               <NotificationBell />
               {/* Discreet admin entry — a plain system-looking lock icon.

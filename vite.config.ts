@@ -67,7 +67,7 @@ export default defineConfig({
     // mixed-content failures). Override the target with VITE_DEV_API_PROXY.
     proxy: Object.fromEntries(
       // '/notifications-api' below is the EXPERIMENTAL notifications feature — remove it to delete the feature.
-      ['/api', '/products', '/upload', '/uploads', '/health', '/catalog-settings', '/notifications-api'].map((p) => [
+      ['/products', '/upload', '/uploads', '/health', '/catalog-settings', '/notifications-api'].map((p) => [
         p,
         {
           target: process.env.VITE_DEV_API_PROXY || 'http://localhost:4000',
