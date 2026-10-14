@@ -1,41 +1,1435 @@
-import { useCallback,useEffect,useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { listProducts } from '@/api/products';
 import { readProductsSnapshot } from '@/lib/offline-db';
-import { fetchCustomers,fetchRemoteOrders,syncCustomer,syncMutations } from '@/api/orders';
-import { getDeviceId,listLocalCustomers,listLocalOrders,listOutbox,removeMutation,saveLocalCustomer,saveLocalOrder,saveMutation,type LocalCustomer,type LocalOrder,type PendingMutation } from '@/lib/orders-db';
+import { fetchCustomers, fetchRemoteOrders, syncCustomer, syncMutations } from '@/api/orders';
+import {
+  getDeviceId,
+  listLocalCustomers,
+  listLocalOrders,
+  listOutbox,
+  removeMutation,
+  saveLocalCustomer,
+  saveLocalOrder,
+  saveMutation,
+  type LocalCustomer,
+  type LocalOrder,
+  type PendingMutation,
+} from '@/lib/orders-db';
 import type { Product } from '@/types/product';
-import { Cloud,CloudOff,Printer,RefreshCw,Plus,Minus } from 'lucide-react';
-export const Route=createFileRoute('/orders')({head:()=>({meta:[{title:'الطلبيات — سردا'}]}),component:OrdersPage});
-const id=()=>crypto.randomUUID();
-function OrdersPage(){
- const [customers,setCustomers]=useState<LocalCustomer[]>([]);const [orders,setOrders]=useState<LocalOrder[]>([]);const [products,setProducts]=useState<Product[]>([]);
- const [screen,setScreen]=useState<'create'|'saved'>('create');const [savedQuery,setSavedQuery]=useState('');const [printOrderId,setPrintOrderId]=useState<string|null>(null);const [name,setName]=useState('');const [phone,setPhone]=useState('');const [chosen,setChosen]=useState('');const [active,setActive]=useState('');const [customerQuery,setCustomerQuery]=useState('');const [productFilter,setProductFilter]=useState('');const [bonusDrafts,setBonusDrafts]=useState<Record<string,string>>({});const [historyVisible,setHistoryVisible]=useState(false);const [notice,setNotice]=useState('');const [busy,setBusy]=useState(false);const [online,setOnline]=useState(typeof navigator!=='undefined'&&navigator.onLine);
- const refresh=useCallback(async()=>{setCustomers(await listLocalCustomers());setOrders((await listLocalOrders()).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)))},[]);
- const loadSaved=useCallback(async()=>{const local=await listLocalOrders();let remote:LocalOrder[]=[];if(navigator.onLine){try{const result=await fetchRemoteOrders();remote=(Array.isArray(result)?result:[]).map((o:any)=>({...o,items:(o.items||[]).map((i:any)=>({...i,productName:i.productName||i.productNameSnapshot||'صنف'})),syncState:'synced' as const}));for(const o of remote)if(!local.some(v=>v.id===o.id))await saveLocalOrder(o)}catch{}}const merged=new Map<string,LocalOrder>();for(const o of remote)merged.set(o.id,o);for(const o of local)merged.set(o.id,o);setOrders([...merged.values()].sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)))},[]);
- useEffect(()=>{void refresh();setProducts(readProductsSnapshot());void listProducts().then(setProducts).catch(()=>{});const update=()=>setOnline(navigator.onLine);window.addEventListener('online',update);window.addEventListener('offline',update);return()=>{window.removeEventListener('online',update);window.removeEventListener('offline',update)}},[refresh]);
- const current=orders.find(o=>o.id===active);
- const newOrderFor=async(c:LocalCustomer)=>{const now=new Date().toISOString();const o:LocalOrder={id:id(),customerId:c.id,customerName:c.name,status:'draft',revision:0,items:[],createdAt:now,updatedAt:now,syncState:'local'};await saveLocalOrder(o);setActive(o.id);setChosen(c.id);setCustomerQuery('');setNotice('');await refresh()};
- const startOrder=async()=>{let c=customers.find(v=>v.id===chosen);if(!c){if(!customerQuery.trim()){setNotice('ابحث عن اسم الزبون أو اكتبه أولاً');return}const now=new Date().toISOString();c={id:id(),name:customerQuery.trim(),phone:phone.trim(),notes:'',isActive:true,createdAt:now,updatedAt:now};await saveLocalCustomer(c);setCustomers(v=>[...v,c]);}await newOrderFor(c);setPhone('')};
- const approveOrder=async()=>{if(!current)return;if(current.items.length===0){setNotice('أضف صنفاً واحداً على الأقل قبل اعتماد الطلبية');return}setBusy(true);try{await persist({...current,status:'submitted'});setActive('');setChosen('');setName('');setPhone('');setCustomerQuery('');setProductFilter('');setBonusDrafts({});setHistoryVisible(false);setScreen('saved');await loadSaved();}finally{setBusy(false)}};
- const persist=async(o:LocalOrder)=>{const next={...o,updatedAt:new Date().toISOString(),syncState:'local' as const};await saveLocalOrder(next);const queue=await listOutbox();const old=queue.find(v=>v.order.id===o.id);if(old)await removeMutation(old.mutationId);const m:PendingMutation={mutationId:id(),deviceId:getDeviceId(),baseRevision:o.revision,order:{id:o.id,customerId:o.customerId,customerName:o.customerName,status:o.status,items:o.items,createdAt:o.createdAt,updatedAt:next.updatedAt}};await saveMutation(m);await refresh()};
- const qty=async(p:Product,delta:number)=>{if(!current)return;const old=current.items.find(i=>i.productId===p.id);const n=(old?.quantity??0)+delta;const items=n<=0?current.items.filter(i=>i.productId!==p.id):old?current.items.map(i=>i.productId===p.id?{...i,quantity:n}:i):[...current.items,{id:id(),productId:p.id,productName:p.name,quantity:n,bonusCartons:0,bonusGallons:0,sortOrder:current.items.length}];await persist({...current,items})};
- const setBonus=async(p:Product,field:'bonusCartons'|'bonusGallons',raw:string)=>{if(!current)return;const item=current.items.find(i=>i.productId===p.id);if(!item)return;const safe=raw.trim()===''?0:Math.max(0,Math.floor(Number(raw)||0));const items=current.items.map(i=>i.productId===p.id?{...i,[field]:safe}:i);await persist({...current,items});setBonusDrafts(v=>{const next={...v};delete next[p.id+':'+field];return next})};
- const resolveConflict=async(choice:'local'|'remote')=>{if(!current||!current.conflict||typeof current.conflict!=='object')return;const remote=current.conflict as any;if(choice==='remote'){const queue=await listOutbox();for(const m of queue)if(m.order.id===current.id)await removeMutation(m.mutationId);await saveLocalOrder({...remote,items:(remote.items||[]).map((i:any)=>({...i,productName:i.productName||i.productNameSnapshot})),syncState:'synced',conflict:undefined});setNotice('تم اعتماد النسخة الموجودة على الخادم');}else{const queue=await listOutbox();const pending=queue.find(m=>m.order.id===current.id);if(!pending){setNotice('لا يوجد تعديل محلي معلّق لإعادة إرساله');return;}await removeMutation(pending.mutationId);await saveMutation({...pending,mutationId:id(),baseRevision:Number(remote.revision)||0});await saveLocalOrder({...current,revision:Number(remote.revision)||0,syncState:'local',conflict:undefined});setNotice('احتُفظ بتعديل هذا الجهاز؛ اضغط مزامنة لإرساله مجدداً');}await refresh()};
- const sync=async()=>{if(!navigator.onLine){setNotice('دون اتصال؛ التغييرات محفوظة على الجهاز');return}setBusy(true);try{for(const c of await listLocalCustomers())await syncCustomer(c);const remote=await fetchCustomers();for(const c of remote){const local=(await listLocalCustomers()).find(v=>v.id===c.id);if(!local)await saveLocalCustomer({...c,isActive:Boolean(c.isActive)})}const queue=await listOutbox();if(queue.length){const res=await syncMutations(queue);for(const r of res.results){const m=queue.find(v=>v.mutationId===r.mutationId);if(!m)continue;if(r.status==='conflict'){const local=(await listLocalOrders()).find(v=>v.id===m.order.id);if(local)await saveLocalOrder({...local,syncState:'conflict',conflict:r.current});continue}await removeMutation(r.mutationId);if(r.order)await saveLocalOrder({...r.order,syncState:'synced',items:(r.order.items||[]).map((i:any)=>({...i,productName:i.productName||i.productNameSnapshot}))})}}const remoteOrders=await fetchRemoteOrders();const queuedIds=new Set((await listOutbox()).map(m=>m.order.id));const localOrders=await listLocalOrders();for(const remote of remoteOrders){const local=localOrders.find(o=>o.id===remote.id);if(queuedIds.has(remote.id)||local?.syncState==='conflict')continue;await saveLocalOrder({...remote,items:(remote.items||[]).map((i:any)=>({...i,productName:i.productName||i.productNameSnapshot})),syncState:'synced'})}await refresh();setNotice('اكتملت محاولة المزامنة؛ افحص حالة أي تعارض') }catch{setNotice('تعذرت المزامنة؛ لم تُحذف التغييرات المحلية')}finally{setBusy(false)}};
- const shown=orders.filter(o=>String(o.customerName??customers.find(c=>c.id===o.customerId)?.name??'').toLocaleLowerCase().includes(customerQuery.toLocaleLowerCase())||String(o.orderNumber??'').includes(customerQuery));
- const savedShown=orders.filter(o=>String(o.customerName??'').toLocaleLowerCase().includes(savedQuery.toLocaleLowerCase())||String(o.orderNumber??'').includes(savedQuery));
- if(screen==='saved')return <main dir="rtl" className="min-h-dvh bg-background p-4 text-foreground">
-<style>{'@page{size:A4;margin:9mm}@media print{body *{visibility:hidden!important}#saved-print,#saved-print *{visibility:visible!important}#saved-print{display:block!important;position:absolute;top:0;right:0;width:100%}.no-print{display:none!important}.print-order{break-inside:avoid;page-break-inside:avoid;border:1px solid #999;padding:7px 9px;margin:0 0 8px;font-size:10pt}.print-order h2{font-size:12pt;margin:0 0 3px}.print-order p{margin:2px 0}table{width:100%;border-collapse:collapse}td,th{text-align:right;border-bottom:1px solid #bbb;padding:3px 5px;font-size:9pt}thead{display:table-header-group}}'}</style>
-<div className="no-print mx-auto max-w-5xl space-y-4"><header className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-bold">معاينة الطلبيات المحفوظة</h1><p className="text-sm text-muted-foreground">ضمن رابط الطلبيات نفسه؛ راجع الأصناف واطبعها من هنا.</p></div><div className="flex flex-wrap gap-2"><button onClick={()=>setScreen('create')} className="rounded border px-3 py-2">العودة لإنشاء الطلبية</button><button onClick={()=>{setScreen('create');setActive('');setNotice('')}} className="rounded border px-3 py-2">طلبية جديدة</button><button onClick={()=>void loadSaved()} className="flex items-center gap-2 rounded border px-3 py-2"><RefreshCw size={16}/> تحديث</button><button disabled={savedShown.length===0} onClick={()=>{setPrintOrderId(null);setTimeout(()=>window.print(),0)}} className="flex items-center gap-2 rounded bg-primary px-3 py-2 text-primary-foreground disabled:opacity-50"><Printer size={16}/> طباعة الطلبيات الظاهرة</button></div></header>
-<input value={savedQuery} onChange={e=>setSavedQuery(e.target.value)} placeholder="ابحث باسم الزبون أو رقم الطلبية" className="w-full rounded-lg border bg-background p-3"/>
-{savedShown.length===0?<p className="rounded-xl border p-6 text-center text-muted-foreground">لا توجد طلبيات محفوظة مطابقة. احفظ طلبية من شاشة الإنشاء لتظهر هنا.</p>:<div className="space-y-3">{savedShown.map(o=><article key={o.id} className="rounded-xl border bg-card p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-bold">{o.customerName||'زبون غير مسمى'}</h2><p className="text-sm text-muted-foreground">{o.orderNumber?'رقم الطلبية: '+o.orderNumber:'طلبية محلية'} · {new Date(o.createdAt).toLocaleDateString('en-CA')} · {o.items.length} أصناف</p></div><button onClick={()=>{setPrintOrderId(o.id);setTimeout(()=>window.print(),0)}} className="flex items-center gap-2 rounded border px-3 py-2 text-sm"><Printer size={15}/> طباعة هذه الطلبية</button></div><div className="mt-3 overflow-x-auto"><table className="w-full text-sm"><thead><tr><th className="p-2 text-right">الصنف</th><th className="p-2 text-right">الكمية</th><th className="p-2 text-right">بونص كراتين</th><th className="p-2 text-right">بونص جالونات</th></tr></thead><tbody>{o.items.map(i=><tr key={i.id} className="border-t"><td className="p-2">{i.productName}</td><td className="p-2">{i.quantity}</td><td className="p-2">{i.bonusCartons||0}</td><td className="p-2">{i.bonusGallons||0}</td></tr>)}</tbody></table></div></article>)}</div>}</div>
-<section id="saved-print" className="hidden">{savedShown.filter(o=>!printOrderId||o.id===printOrderId).map(o=><article key={o.id} className="print-order"><h2>شركة سردا — طلبية {o.orderNumber?'#'+o.orderNumber:'محلية'}</h2><p>الزبون: {o.customerName||'غير محدد'} · التاريخ: {new Date(o.createdAt).toLocaleDateString('en-CA')}</p><table><thead><tr><th>الصنف</th><th>الكمية</th><th>بونص كراتين</th><th>بونص جالونات</th></tr></thead><tbody>{o.items.map(i=><tr key={i.id}><td>{i.productName}</td><td>{i.quantity}</td><td>{i.bonusCartons||0}</td><td>{i.bonusGallons||0}</td></tr>)}</tbody></table></article>)}</section></main>;
- return <main dir="rtl" className="min-h-dvh bg-background p-4 text-foreground"><style>{'@page{size:A4;margin:14mm}@media print{body *{visibility:hidden!important}#print-orders,#print-orders *{visibility:visible!important}#print-orders{display:block!important;position:absolute;inset:0;width:100%}.no-print{display:none!important}.print-order{break-inside:avoid;page-break-inside:avoid;margin-bottom:16px;border:1px solid #888;padding:12px}table{width:100%;border-collapse:collapse}td,th{text-align:right;border-bottom:1px solid #aaa;padding:6px}}'}</style>
- <div className="no-print mx-auto max-w-6xl space-y-4"><header className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-bold">إنشاء طلبية</h1><p className="text-sm text-muted-foreground">اختر الزبون، حدّد الكميات، ثم احفظ الطلبية</p></div><div className="flex flex-wrap gap-2"><a href="/" className="rounded border px-3 py-2">الكاتالوج</a><button onClick={()=>{setScreen('saved');void loadSaved()}} className="rounded border px-3 py-2">معاينة الطلبيات المحفوظة</button>{current&&<><button onClick={()=>{if(confirm('إغلاق شاشة الطلبية؟ ستبقى الطلبية محفوظة كمسودة ويمكن فتحها من السجل.')){setActive('');setChosen('');setName('');setPhone('');setCustomerQuery('');setProductFilter('');setBonusDrafts({});setHistoryVisible(false);setNotice('أُغلقت شاشة الطلبية؛ لم تُحذف. افتح سجل الطلبيات لمتابعتها.')}}} className="rounded border px-3 py-2">إغلاق</button><button disabled={busy} onClick={()=>void approveOrder()} className="rounded bg-primary px-3 py-2 text-primary-foreground disabled:opacity-50">حفظ الطلبية</button></>}<span className="flex items-center gap-2 rounded border px-3 py-2">{online?<Cloud size={16}/>:<CloudOff size={16}/>} {online?'متصل':'دون اتصال'}</span><button disabled={busy||!online} onClick={()=>void sync()} className="flex items-center gap-2 rounded bg-primary px-3 py-2 text-primary-foreground disabled:opacity-50"><RefreshCw size={16}/> مزامنة</button></div></header>
- {notice&&<p role="status" className="rounded border p-3 text-sm">{notice}</p>}
- <div className="space-y-4">{!current&&<section className="mx-auto max-w-2xl space-y-4 rounded-xl border p-5 sm:p-7"><h2 className="text-xl font-bold">بدء طلبية جديدة</h2><label className="block space-y-2"><span className="text-sm font-medium">ابحث عن اسم الزبون أو اكتبه يدوياً</span><input autoComplete="off" value={customerQuery} onChange={e=>{setCustomerQuery(e.target.value);setChosen('')}} placeholder="اكتب اسم الزبون..." className="w-full rounded-lg border bg-background p-3 text-base"/></label>{!chosen&&customerQuery.trim()&&<div className="max-h-56 space-y-1 overflow-auto rounded-lg border p-2">{customers.filter(c=>c.isActive&&String(c.name??'').toLocaleLowerCase().includes(customerQuery.trim().toLocaleLowerCase())).slice(0,8).map(c=><button key={c.id} onClick={()=>{setChosen(c.id);setCustomerQuery(c.name);setPhone(c.phone||'')}} className="block w-full rounded-md p-3 text-right hover:bg-muted"><b>{c.name}</b>{c.phone&&<small className="block text-muted-foreground">{c.phone}</small>}</button>)}{!customers.some(c=>c.isActive&&String(c.name??'').toLocaleLowerCase()===customerQuery.trim().toLocaleLowerCase())&&<p className="p-2 text-sm text-muted-foreground">يمكن إنشاء طلبية باسم جديد: {customerQuery.trim()}</p>}</div>}{chosen&&<div className="flex items-center justify-between rounded-lg border border-primary/40 bg-primary/5 p-3"><span>الزبون المحدد: <b>{customers.find(c=>c.id===chosen)?.name||customerQuery}</b></span><button onClick={()=>{setChosen('');setCustomerQuery('');setPhone('')}} className="text-sm underline">تغيير</button></div>}<input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="الهاتف (اختياري)" className="w-full rounded-lg border bg-background p-3"/><button onClick={()=>void startOrder()} disabled={busy||(!chosen&&!customerQuery.trim())} className="w-full rounded-lg bg-primary p-3 font-semibold text-primary-foreground disabled:opacity-50">بدء الطلبية</button><p className="text-xs text-muted-foreground">تُحفظ الأصناف تلقائياً أثناء إدخال الكميات. بعد حفظ الطلبية تنتقل إلى شاشة المعاينة والطباعة ضمن الرابط نفسه.</p></section>}
- {current&&<section className="space-y-3 rounded-xl border p-4"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-xl font-bold">طلبية الزبون: {current.customerName}</h2><span className="text-xs text-muted-foreground">{current.syncState==='conflict'?'تعارض يحتاج مراجعة':current.syncState==='synced'?'متزامنة':'محفوظة محلياً'}</span></div>{current.syncState==='conflict'&&<div className="space-y-2 rounded-lg border border-amber-500 p-3"><p className="font-semibold">عُدّلت هذه الطلبية على جهاز آخر. اختر النسخة التي تريد الاحتفاظ بها؛ لن يُحذف أي تعديل تلقائياً.</p><div className="flex flex-wrap gap-2"><button onClick={()=>void resolveConflict('local')} className="rounded border px-3 py-2">الاحتفاظ بتعديل هذا الجهاز</button><button onClick={()=>void resolveConflict('remote')} className="rounded border px-3 py-2">اعتماد نسخة الخادم</button></div></div>}<label className="block"><span className="sr-only">بحث عن صنف</span><input value={productFilter} onChange={e=>setProductFilter(e.target.value)} placeholder="بحث سريع عن صنف..." className="w-full rounded-lg border bg-background p-3"/></label><div className="grid max-h-[70vh] grid-cols-2 gap-3 overflow-auto sm:grid-cols-3 xl:grid-cols-4">{products.filter(p=>!p.isHidden&&(p.name.toLocaleLowerCase().includes(productFilter.toLocaleLowerCase())||p.category.toLocaleLowerCase().includes(productFilter.toLocaleLowerCase()))).map(p=>{const item=current.items.find(i=>i.productId===p.id);return <article key={p.id} className="flex min-w-0 flex-col overflow-hidden rounded-xl border bg-card"><div className="flex h-28 items-center justify-center bg-muted/40 p-2">{p.imageUrl?<img src={p.imageUrl} alt={p.name} loading="lazy" className="h-full w-full object-contain"/>:<span className="text-center text-xs text-muted-foreground">لا توجد صورة</span>}</div><div className="flex flex-1 flex-col gap-2 p-2"><p className="line-clamp-2 min-h-10 text-sm font-semibold">{p.name}</p><div className="grid grid-cols-[40px_minmax(0,1fr)_40px] items-center gap-1 rounded-lg bg-muted/50 p-1"><button aria-label={'زيادة كمية '+p.name} onClick={()=>void qty(p,1)} className="flex h-9 items-center justify-center rounded-md border bg-background" title="زيادة"><Plus size={17}/></button><input aria-label={'كمية '+p.name} type="number" min="0" step="1" inputMode="numeric" value={item?.quantity||0} onFocus={e=>e.currentTarget.select()} onChange={e=>{const raw=e.target.value;const value=raw===''?0:Math.max(0,Math.floor(Number(raw)||0));if(current){const old=current.items.find(i=>i.productId===p.id);const items=value===0?current.items.filter(i=>i.productId!==p.id):old?current.items.map(i=>i.productId===p.id?{...i,quantity:value}:i):[...current.items,{id:id(),productId:p.id,productName:p.name,quantity:value,bonusCartons:0,bonusGallons:0,sortOrder:current.items.length}];void persist({...current,items})}}} className="h-9 w-full min-w-0 rounded-md border bg-background text-center font-semibold tabular-nums" /><button aria-label={'تقليل كمية '+p.name} onClick={()=>void qty(p,-1)} disabled={!item?.quantity} className="flex h-9 items-center justify-center rounded-md border bg-background disabled:opacity-40" title="تقليل"><Minus size={17}/></button></div><div className="grid grid-cols-2 gap-2"><label className="text-xs text-muted-foreground">بونص كراتين<input type="number" min="0" step="1" inputMode="numeric" value={item?(bonusDrafts[p.id+':bonusCartons']??String(item.bonusCartons??0)):0} disabled={!item} onFocus={e=>e.currentTarget.select()} onChange={e=>setBonusDrafts(v=>({...v,[p.id+':bonusCartons']:e.target.value}))} onBlur={e=>{if(item)void setBonus(p,'bonusCartons',e.currentTarget.value)}} className="mt-1 w-full rounded border bg-background p-2 text-sm text-foreground disabled:opacity-40"/></label><label className="text-xs text-muted-foreground">بونص جالونات<input type="number" min="0" step="1" inputMode="numeric" value={item?(bonusDrafts[p.id+':bonusGallons']??String(item.bonusGallons??0)):0} disabled={!item} onFocus={e=>e.currentTarget.select()} onChange={e=>setBonusDrafts(v=>({...v,[p.id+':bonusGallons']:e.target.value}))} onBlur={e=>{if(item)void setBonus(p,'bonusGallons',e.currentTarget.value)}} className="mt-1 w-full rounded border bg-background p-2 text-sm text-foreground disabled:opacity-40"/></label></div></div></article>})}</div><h3 className="font-semibold">الأصناف المختارة</h3>{current.items.map(i=><p key={i.id} className="flex justify-between gap-3 border-b py-2 text-sm"><span>{i.productName}{(i.bonusCartons||i.bonusGallons)?<small className="block text-muted-foreground">بونص: {i.bonusCartons||0} كرتونة · {i.bonusGallons||0} جالون</small>:null}</span><span className="shrink-0">الكمية: {i.quantity}</span></p>)}</section>}</div>
- {historyVisible&&<section className="rounded-xl border p-4"><div className="mb-3 flex items-center justify-between"><h2 className="font-bold">سجل الإدارة — لا يظهر في شاشة إدخال الطلبية</h2><button onClick={()=>setHistoryVisible(false)} className="rounded border px-3 py-2">إغلاق السجل</button></div><input value={customerQuery} onChange={e=>setCustomerQuery(e.target.value)} placeholder="ابحث في السجل بالاسم أو رقم الطلبية" className="mb-3 w-full rounded border bg-background p-2"/>{shown.map(o=><button key={o.id} onClick={()=>{setActive(o.id);setHistoryVisible(false)}} className={'mb-2 flex w-full items-center justify-between rounded border p-3 text-right '+(active===o.id?'border-primary bg-primary/10':'')}><span><b>{o.customerName}</b><small className="block text-muted-foreground">{o.orderNumber?'طلبية #'+o.orderNumber:'بانتظار المزامنة'} · {new Date(o.updatedAt).toLocaleDateString('en-CA')}</small></span><span className="text-xs">{o.syncState==='conflict'?'تعارض':o.syncState==='synced'?'متزامنة':'محلية'}</span></button>)}</section>}
- </div><section id="print-orders" className="hidden">{shown.filter(o=>!active||o.id===active).map(o=><article key={o.id} className="print-order"><h2>شركة سردا — طلبية {o.orderNumber?'#'+o.orderNumber:'محلية'}</h2><p>الزبون: {o.customerName}</p><p>التاريخ: {new Date(o.createdAt).toLocaleDateString('en-CA')}</p><table><thead><tr><th>الصنف</th><th>الكمية المطلوبة</th><th>بونص كراتين</th><th>بونص جالونات</th></tr></thead><tbody>{o.items.map(i=><tr key={i.id}><td>{i.productName}</td><td>{i.quantity}</td><td>{i.bonusCartons||0}</td><td>{i.bonusGallons||0}</td></tr>)}</tbody></table></article>)}</section></main>
+import {
+  ArrowRight,
+  Check,
+  CheckSquare,
+  Cloud,
+  CloudOff,
+  Loader2,
+  Minus,
+  Plus,
+  Printer,
+  RefreshCw,
+  Search,
+  Square,
+  Trash2,
+  X,
+} from 'lucide-react';
+
+export const Route = createFileRoute('/orders')({
+  head: () => ({ meta: [{ title: 'الطلبيات — سردا' }] }),
+  component: OrdersPage,
+});
+
+const uid = () => crypto.randomUUID();
+
+/** Normalise raw input to a non-negative integer (English numerals only). */
+const toInt = (raw: string): number => {
+  const trimmed = raw.replace(/[^\d]/g, '');
+  if (trimmed === '') return 0;
+  return Math.max(0, Math.min(999999, Math.floor(Number(trimmed) || 0)));
+};
+
+const fmtDate = (iso: string) => {
+  try {
+    return new Date(iso).toLocaleDateString('en-CA');
+  } catch {
+    return '';
+  }
+};
+
+type View = 'entry' | 'review';
+
+function OrdersPage() {
+  // ── Data ────────────────────────────────────────────────────────────────
+  const [customers, setCustomers] = useState<LocalCustomer[]>([]);
+  const [orders, setOrders] = useState<LocalOrder[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+
+  // ── Navigation / view ─────────────────────────────────────────────────────
+  const [view, setView] = useState<View>('entry');
+
+  // ── Entry state ─────────────────────────────────────────────────────────
+  const [activeId, setActiveId] = useState('');
+  const [chosenCustomer, setChosenCustomer] = useState('');
+  const [customerQuery, setCustomerQuery] = useState('');
+  const [phone, setPhone] = useState('');
+  const [productFilter, setProductFilter] = useState('');
+  const [category, setCategory] = useState<string>('all');
+  const [qtyDrafts, setQtyDrafts] = useState<Record<string, string>>({});
+  const [bonusDrafts, setBonusDrafts] = useState<Record<string, string>>({});
+  const [cartOpen, setCartOpen] = useState(false);
+
+  // ── Review state ──────────────────────────────────────────────────────────
+  const [savedQuery, setSavedQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | LocalOrder['status']>('all');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [printScope, setPrintScope] = useState<string[]>([]);
+
+  // ── Shared ──────────────────────────────────────────────────────────────
+  const [notice, setNotice] = useState<{ kind: 'info' | 'error' | 'success'; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [online, setOnline] = useState(typeof navigator !== 'undefined' && navigator.onLine);
+  const savingRef = useRef(false);
+
+  const flash = useCallback((kind: 'info' | 'error' | 'success', text: string) => setNotice({ kind, text }), []);
+
+  // ── Loaders ───────────────────────────────────────────────────────────────
+  const refresh = useCallback(async () => {
+    setCustomers(await listLocalCustomers());
+    setOrders((await listLocalOrders()).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+  }, []);
+
+  const loadSaved = useCallback(async () => {
+    const local = await listLocalOrders();
+    let remote: LocalOrder[] = [];
+    if (navigator.onLine) {
+      try {
+        const result = await fetchRemoteOrders();
+        remote = (Array.isArray(result) ? result : []).map((o: any) => ({
+          ...o,
+          items: (o.items || []).map((i: any) => ({ ...i, productName: i.productName || i.productNameSnapshot || 'صنف' })),
+          syncState: 'synced' as const,
+        }));
+        for (const o of remote) if (!local.some((v) => v.id === o.id)) await saveLocalOrder(o);
+      } catch {
+        /* offline / transient — keep local view */
+      }
+    }
+    const merged = new Map<string, LocalOrder>();
+    for (const o of remote) merged.set(o.id, o);
+    for (const o of local) merged.set(o.id, o);
+    setOrders([...merged.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+    setProducts(readProductsSnapshot());
+    void listProducts().then(setProducts).catch(() => {});
+    const update = () => setOnline(navigator.onLine);
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    return () => {
+      window.removeEventListener('online', update);
+      window.removeEventListener('offline', update);
+    };
+  }, [refresh]);
+
+  // Auto-dismiss transient notices.
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 5000);
+    return () => clearTimeout(t);
+  }, [notice]);
+
+  const current = orders.find((o) => o.id === activeId);
+
+  // ── Persistence (single source of truth — never bypass this) ──────────────
+  const persist = useCallback(
+    async (o: LocalOrder) => {
+      const next = { ...o, updatedAt: new Date().toISOString(), syncState: 'local' as const };
+      await saveLocalOrder(next);
+      const queue = await listOutbox();
+      const old = queue.find((v) => v.order.id === o.id);
+      if (old) await removeMutation(old.mutationId);
+      const m: PendingMutation = {
+        mutationId: uid(),
+        deviceId: getDeviceId(),
+        baseRevision: o.revision,
+        order: {
+          id: o.id,
+          customerId: o.customerId,
+          customerName: o.customerName,
+          status: o.status,
+          items: o.items,
+          createdAt: o.createdAt,
+          updatedAt: next.updatedAt,
+        },
+      };
+      await saveMutation(m);
+      await refresh();
+    },
+    [refresh],
+  );
+
+  // ── Order lifecycle ───────────────────────────────────────────────────────
+  const newOrderFor = async (c: LocalCustomer) => {
+    const now = new Date().toISOString();
+    const o: LocalOrder = {
+      id: uid(),
+      customerId: c.id,
+      customerName: c.name,
+      status: 'draft',
+      revision: 0,
+      items: [],
+      createdAt: now,
+      updatedAt: now,
+      syncState: 'local',
+    };
+    await saveLocalOrder(o);
+    setActiveId(o.id);
+    setChosenCustomer(c.id);
+    setCustomerQuery('');
+    setProductFilter('');
+    setCategory('all');
+    setQtyDrafts({});
+    setBonusDrafts({});
+    setNotice(null);
+    await refresh();
+  };
+
+  const startOrder = async () => {
+    let c = customers.find((v) => v.id === chosenCustomer);
+    if (!c) {
+      if (!customerQuery.trim()) {
+        flash('error', 'ابحث عن اسم الزبون أو اكتبه أولاً');
+        return;
+      }
+      const now = new Date().toISOString();
+      c = {
+        id: uid(),
+        name: customerQuery.trim(),
+        phone: phone.trim(),
+        notes: '',
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await saveLocalCustomer(c);
+      setCustomers((v) => [...v, c as LocalCustomer]);
+    }
+    await newOrderFor(c);
+    setPhone('');
+  };
+
+  const resetEntry = () => {
+    setActiveId('');
+    setChosenCustomer('');
+    setPhone('');
+    setCustomerQuery('');
+    setProductFilter('');
+    setCategory('all');
+    setQtyDrafts({});
+    setBonusDrafts({});
+    setCartOpen(false);
+  };
+
+  const closeOrder = () => {
+    if (!current) return;
+    if (
+      confirm('إغلاق شاشة الطلبية؟ ستبقى الطلبية محفوظة كمسودة ويمكن فتحها لاحقاً من الطلبيات المحفوظة.')
+    ) {
+      resetEntry();
+      flash('info', 'أُغلقت شاشة الطلبية ولم تُحذف. تجدها في الطلبيات المحفوظة.');
+    }
+  };
+
+  const approveOrder = async () => {
+    if (!current || savingRef.current) return;
+    if (current.items.length === 0) {
+      flash('error', 'أضف صنفاً واحداً على الأقل قبل حفظ الطلبية');
+      return;
+    }
+    savingRef.current = true;
+    setBusy(true);
+    try {
+      await persist({ ...current, status: 'submitted' });
+      resetEntry();
+      setView('review');
+      await loadSaved();
+      flash('success', 'حُفظت الطلبية محلياً. اضغط «مزامنة» لإرسالها إلى الخادم عند توفر الاتصال.');
+    } finally {
+      savingRef.current = false;
+      setBusy(false);
+    }
+  };
+
+  // ── Item editing (quantity + bonus) ────────────────────────────────────────
+  const setQuantity = async (p: Product, value: number) => {
+    if (!current) return;
+    const old = current.items.find((i) => i.productId === p.id);
+    const items =
+      value <= 0
+        ? current.items.filter((i) => i.productId !== p.id)
+        : old
+          ? current.items.map((i) => (i.productId === p.id ? { ...i, quantity: value } : i))
+          : [
+              ...current.items,
+              {
+                id: uid(),
+                productId: p.id,
+                productName: p.name,
+                quantity: value,
+                bonusCartons: 0,
+                bonusGallons: 0,
+                sortOrder: current.items.length,
+              },
+            ];
+    await persist({ ...current, items });
+  };
+
+  const stepQuantity = async (p: Product, delta: number) => {
+    if (!current) return;
+    const old = current.items.find((i) => i.productId === p.id);
+    await setQuantity(p, (old?.quantity ?? 0) + delta);
+    setQtyDrafts((v) => {
+      const next = { ...v };
+      delete next[p.id];
+      return next;
+    });
+  };
+
+  const setBonus = async (p: Product, field: 'bonusCartons' | 'bonusGallons', raw: string) => {
+    if (!current) return;
+    const item = current.items.find((i) => i.productId === p.id);
+    if (!item) return;
+    const safe = toInt(raw);
+    const items = current.items.map((i) => (i.productId === p.id ? { ...i, [field]: safe } : i));
+    await persist({ ...current, items });
+    setBonusDrafts((v) => {
+      const next = { ...v };
+      delete next[p.id + ':' + field];
+      return next;
+    });
+  };
+
+  // ── Conflict + sync (preserved from prior behaviour) ───────────────────────
+  const resolveConflict = async (orderId: string, choice: 'local' | 'remote') => {
+    const target = orders.find((o) => o.id === orderId);
+    if (!target || !target.conflict || typeof target.conflict !== 'object') return;
+    const remote = target.conflict as any;
+    if (choice === 'remote') {
+      const queue = await listOutbox();
+      for (const m of queue) if (m.order.id === target.id) await removeMutation(m.mutationId);
+      await saveLocalOrder({
+        ...remote,
+        items: (remote.items || []).map((i: any) => ({ ...i, productName: i.productName || i.productNameSnapshot })),
+        syncState: 'synced',
+        conflict: undefined,
+      });
+      flash('info', 'تم اعتماد النسخة الموجودة على الخادم.');
+    } else {
+      const queue = await listOutbox();
+      const pending = queue.find((m) => m.order.id === target.id);
+      if (!pending) {
+        flash('error', 'لا يوجد تعديل محلي معلّق لإعادة إرساله.');
+        return;
+      }
+      await removeMutation(pending.mutationId);
+      await saveMutation({ ...pending, mutationId: uid(), baseRevision: Number(remote.revision) || 0 });
+      await saveLocalOrder({ ...target, revision: Number(remote.revision) || 0, syncState: 'local', conflict: undefined });
+      flash('info', 'احتُفظ بتعديل هذا الجهاز؛ اضغط مزامنة لإرساله مجدداً.');
+    }
+    await refresh();
+  };
+
+  const sync = async () => {
+    if (!navigator.onLine) {
+      flash('info', 'دون اتصال؛ التغييرات محفوظة على الجهاز وستُرسل عند عودة الاتصال.');
+      return;
+    }
+    setSyncing(true);
+    setBusy(true);
+    try {
+      for (const c of await listLocalCustomers()) await syncCustomer(c);
+      const remoteCustomers = await fetchCustomers();
+      for (const c of remoteCustomers) {
+        const local = (await listLocalCustomers()).find((v) => v.id === c.id);
+        if (!local) await saveLocalCustomer({ ...c, isActive: Boolean(c.isActive) });
+      }
+      const queue = await listOutbox();
+      if (queue.length) {
+        const res = await syncMutations(queue);
+        for (const r of res.results) {
+          const m = queue.find((v) => v.mutationId === r.mutationId);
+          if (!m) continue;
+          if (r.status === 'conflict') {
+            const local = (await listLocalOrders()).find((v) => v.id === m.order.id);
+            if (local) await saveLocalOrder({ ...local, syncState: 'conflict', conflict: r.current });
+            continue;
+          }
+          await removeMutation(r.mutationId);
+          if (r.order)
+            await saveLocalOrder({
+              ...r.order,
+              syncState: 'synced',
+              items: (r.order.items || []).map((i: any) => ({ ...i, productName: i.productName || i.productNameSnapshot })),
+            });
+        }
+      }
+      const remoteOrders = await fetchRemoteOrders();
+      const queuedIds = new Set((await listOutbox()).map((m) => m.order.id));
+      const localOrders = await listLocalOrders();
+      for (const remote of remoteOrders) {
+        const local = localOrders.find((o) => o.id === remote.id);
+        if (queuedIds.has(remote.id) || local?.syncState === 'conflict') continue;
+        await saveLocalOrder({
+          ...remote,
+          items: (remote.items || []).map((i: any) => ({ ...i, productName: i.productName || i.productNameSnapshot })),
+          syncState: 'synced',
+        });
+      }
+      await refresh();
+      const conflicts = (await listLocalOrders()).filter((o) => o.syncState === 'conflict').length;
+      flash(conflicts ? 'error' : 'success', conflicts ? `اكتملت المزامنة مع ${conflicts} تعارض يحتاج مراجعة.` : 'اكتملت المزامنة بنجاح.');
+    } catch {
+      flash('error', 'تعذّرت المزامنة؛ لم تُحذف أي تغييرات محلية. حاول مجدداً.');
+    } finally {
+      setSyncing(false);
+      setBusy(false);
+    }
+  };
+
+  // ── Derived: products / categories ──────────────────────────────────────────
+  const visibleProducts = useMemo(() => products.filter((p) => !p.isHidden), [products]);
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of visibleProducts) if (p.category) set.add(p.category);
+    return [...set];
+  }, [visibleProducts]);
+  const productById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+
+  const filteredProducts = useMemo(() => {
+    const q = productFilter.trim().toLocaleLowerCase();
+    return visibleProducts.filter((p) => {
+      if (category !== 'all' && p.category !== category) return false;
+      if (!q) return true;
+      return (
+        p.name.toLocaleLowerCase().includes(q) ||
+        (p.category || '').toLocaleLowerCase().includes(q) ||
+        (p.size || '').toLocaleLowerCase().includes(q)
+      );
+    });
+  }, [visibleProducts, productFilter, category]);
+
+  // ── Derived: order totals (estimate from current catalog prices) ────────────
+  const orderEstimate = (o: LocalOrder) =>
+    o.items.reduce((sum, i) => sum + (productById.get(i.productId)?.cartonPrice ?? 0) * i.quantity, 0);
+  const totalUnits = (o: LocalOrder) => o.items.reduce((s, i) => s + i.quantity, 0);
+
+  // ── Derived: review list ────────────────────────────────────────────────────
+  const savedShown = useMemo(() => {
+    const q = savedQuery.trim().toLocaleLowerCase();
+    return orders.filter((o) => {
+      if (statusFilter !== 'all' && o.status !== statusFilter) return false;
+      if (!q) return true;
+      return (
+        String(o.customerName ?? '').toLocaleLowerCase().includes(q) ||
+        String(o.orderNumber ?? '').includes(savedQuery.trim())
+      );
+    });
+  }, [orders, savedQuery, statusFilter]);
+
+  const printOrders = orders.filter((o) => printScope.includes(o.id));
+
+  const doPrint = (ids: string[]) => {
+    if (ids.length === 0) return;
+    setPrintScope(ids);
+    setTimeout(() => {
+      window.print();
+    }, 60);
+  };
+
+  const toggleSelected = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  const toggleExpanded = (id: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+
+  const statusLabel = (s: LocalOrder['status']) =>
+    s === 'submitted' ? 'محفوظة' : s === 'cancelled' ? 'ملغاة' : 'مسودة';
+  const syncLabel = (s: LocalOrder['syncState']) =>
+    s === 'conflict' ? 'تعارض' : s === 'synced' ? 'متزامنة' : 'محلية';
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Render
+  // ──────────────────────────────────────────────────────────────────────────
+  return (
+    <main dir="rtl" className="min-h-dvh bg-background text-foreground">
+      <PrintStyles />
+
+      {/* Top app bar */}
+      <header className="no-print sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <a
+              href="/catalog"
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition hover:bg-muted"
+              title="العودة للكاتالوج"
+              aria-label="العودة للكاتالوج"
+            >
+              <ArrowRight size={18} />
+            </a>
+            <div className="min-w-0">
+              <h1 className="truncate text-lg font-bold leading-tight">الطلبيات</h1>
+              <p className="truncate text-xs text-muted-foreground">تسجيل ومراجعة وطباعة — ضمن صفحة واحدة</p>
+            </div>
+          </div>
+
+          <div className="order-last flex w-full items-center gap-2 sm:order-none sm:ms-auto sm:w-auto">
+            {/* Segmented view switch */}
+            <div className="flex rounded-lg border border-border bg-muted/40 p-0.5 text-sm">
+              <button
+                onClick={() => setView('entry')}
+                className={
+                  'rounded-md px-3 py-1.5 font-medium transition ' +
+                  (view === 'entry' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')
+                }
+              >
+                تسجيل طلبية
+              </button>
+              <button
+                onClick={() => {
+                  setView('review');
+                  void loadSaved();
+                }}
+                className={
+                  'rounded-md px-3 py-1.5 font-medium transition ' +
+                  (view === 'review' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')
+                }
+              >
+                الطلبيات المحفوظة
+              </button>
+            </div>
+
+            <span
+              className={
+                'flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium ' +
+                (online ? 'border-border text-muted-foreground' : 'border-destructive/40 text-destructive')
+              }
+              title={online ? 'متصل بالإنترنت' : 'تعمل دون اتصال'}
+            >
+              {online ? <Cloud size={15} /> : <CloudOff size={15} />}
+              <span className="hidden sm:inline">{online ? 'متصل' : 'دون اتصال'}</span>
+            </span>
+
+            <button
+              disabled={busy || !online}
+              onClick={() => void sync()}
+              className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
+              title="مزامنة مع الخادم"
+            >
+              {syncing ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+              <span className="hidden sm:inline">مزامنة</span>
+            </button>
+          </div>
+        </div>
+
+        {notice && (
+          <div className="mx-auto max-w-7xl px-4 pb-3">
+            <p
+              role="status"
+              className={
+                'rounded-lg border px-3 py-2 text-sm ' +
+                (notice.kind === 'error'
+                  ? 'border-destructive/40 bg-destructive/10 text-destructive'
+                  : notice.kind === 'success'
+                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                    : 'border-border bg-muted/50 text-foreground')
+              }
+            >
+              {notice.text}
+            </p>
+          </div>
+        )}
+      </header>
+
+      {view === 'entry' ? (
+        <EntryView
+          current={current}
+          customers={customers}
+          chosenCustomer={chosenCustomer}
+          setChosenCustomer={setChosenCustomer}
+          customerQuery={customerQuery}
+          setCustomerQuery={setCustomerQuery}
+          phone={phone}
+          setPhone={setPhone}
+          startOrder={startOrder}
+          busy={busy}
+          productFilter={productFilter}
+          setProductFilter={setProductFilter}
+          category={category}
+          setCategory={setCategory}
+          categories={categories}
+          filteredProducts={filteredProducts}
+          qtyDrafts={qtyDrafts}
+          setQtyDrafts={setQtyDrafts}
+          bonusDrafts={bonusDrafts}
+          setBonusDrafts={setBonusDrafts}
+          setQuantity={setQuantity}
+          stepQuantity={stepQuantity}
+          setBonus={setBonus}
+          productById={productById}
+          orderEstimate={orderEstimate}
+          totalUnits={totalUnits}
+          approveOrder={approveOrder}
+          closeOrder={closeOrder}
+          resolveConflict={resolveConflict}
+          syncLabel={syncLabel}
+          cartOpen={cartOpen}
+          setCartOpen={setCartOpen}
+          doPrint={doPrint}
+        />
+      ) : (
+        <ReviewView
+          savedShown={savedShown}
+          savedQuery={savedQuery}
+          setSavedQuery={setSavedQuery}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          selected={selected}
+          setSelected={setSelected}
+          toggleSelected={toggleSelected}
+          expanded={expanded}
+          toggleExpanded={toggleExpanded}
+          loadSaved={loadSaved}
+          doPrint={doPrint}
+          startNew={() => {
+            resetEntry();
+            setView('entry');
+          }}
+          orderEstimate={orderEstimate}
+          totalUnits={totalUnits}
+          statusLabel={statusLabel}
+          syncLabel={syncLabel}
+          resolveConflict={resolveConflict}
+        />
+      )}
+
+      {/* Hidden print surface — shared by entry and review */}
+      <PrintSheet orders={printOrders} />
+    </main>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Entry view
+// ────────────────────────────────────────────────────────────────────────────
+interface EntryProps {
+  current: LocalOrder | undefined;
+  customers: LocalCustomer[];
+  chosenCustomer: string;
+  setChosenCustomer: (v: string) => void;
+  customerQuery: string;
+  setCustomerQuery: (v: string) => void;
+  phone: string;
+  setPhone: (v: string) => void;
+  startOrder: () => void;
+  busy: boolean;
+  productFilter: string;
+  setProductFilter: (v: string) => void;
+  category: string;
+  setCategory: (v: string) => void;
+  categories: string[];
+  filteredProducts: Product[];
+  qtyDrafts: Record<string, string>;
+  setQtyDrafts: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  bonusDrafts: Record<string, string>;
+  setBonusDrafts: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  setQuantity: (p: Product, v: number) => void;
+  stepQuantity: (p: Product, d: number) => void;
+  setBonus: (p: Product, f: 'bonusCartons' | 'bonusGallons', raw: string) => void;
+  productById: Map<string, Product>;
+  orderEstimate: (o: LocalOrder) => number;
+  totalUnits: (o: LocalOrder) => number;
+  approveOrder: () => void;
+  closeOrder: () => void;
+  resolveConflict: (id: string, c: 'local' | 'remote') => void;
+  syncLabel: (s: LocalOrder['syncState']) => string;
+  cartOpen: boolean;
+  setCartOpen: (v: boolean) => void;
+  doPrint: (ids: string[]) => void;
+}
+
+function EntryView(props: EntryProps) {
+  const { current } = props;
+
+  if (!current) return <CustomerPicker {...props} />;
+
+  return (
+    <div className="mx-auto grid max-w-7xl gap-4 px-4 py-4 lg:grid-cols-[1fr_360px]">
+      {/* Product catalog */}
+      <section className="min-w-0 space-y-3">
+        {current.syncState === 'conflict' && <ConflictBanner order={current} resolveConflict={props.resolveConflict} />}
+
+        <div className="sticky top-[73px] z-20 -mx-4 space-y-2 border-b border-border bg-background/95 px-4 pb-3 pt-1 backdrop-blur lg:top-[65px]">
+          <div className="relative">
+            <Search size={17} className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={props.productFilter}
+              onChange={(e) => props.setProductFilter(e.target.value)}
+              placeholder="بحث سريع عن صنف بالاسم أو الحجم…"
+              className="w-full rounded-lg border border-border bg-card p-3 pe-10 text-base outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+          {props.categories.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              <CategoryChip active={props.category === 'all'} onClick={() => props.setCategory('all')}>
+                الكل
+              </CategoryChip>
+              {props.categories.map((c) => (
+                <CategoryChip key={c} active={props.category === c} onClick={() => props.setCategory(c)}>
+                  {c}
+                </CategoryChip>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {props.filteredProducts.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border p-10 text-center text-muted-foreground">
+            لا توجد أصناف مطابقة للبحث.
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4">
+            {props.filteredProducts.map((p) => (
+              <ProductTile
+                key={p.id}
+                product={p}
+                item={current.items.find((i) => i.productId === p.id)}
+                qtyDraft={props.qtyDrafts[p.id]}
+                onQtyInput={(raw) => {
+                  props.setQtyDrafts((v) => ({ ...v, [p.id]: raw }));
+                  props.setQuantity(p, toInt(raw));
+                }}
+                onQtyBlur={() =>
+                  props.setQtyDrafts((v) => {
+                    const next = { ...v };
+                    delete next[p.id];
+                    return next;
+                  })
+                }
+                onStep={(d) => props.stepQuantity(p, d)}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Order cart — sticky on desktop, bottom sheet on mobile */}
+      <OrderCart {...props} current={current} />
+
+      {/* Mobile floating cart button */}
+      <button
+        onClick={() => props.setCartOpen(true)}
+        className="no-print fixed bottom-4 start-4 z-30 flex items-center gap-2 rounded-full bg-primary px-5 py-3 font-semibold text-primary-foreground shadow-lg lg:hidden"
+      >
+        <CheckSquare size={18} /> السلة ({current.items.length})
+      </button>
+    </div>
+  );
+}
+
+function CustomerPicker(props: EntryProps) {
+  const query = props.customerQuery.trim().toLocaleLowerCase();
+  const matches = props.customers
+    .filter((c) => c.isActive && String(c.name ?? '').toLocaleLowerCase().includes(query))
+    .slice(0, 8);
+  const exact = props.customers.some(
+    (c) => c.isActive && String(c.name ?? '').toLocaleLowerCase() === props.customerQuery.trim().toLocaleLowerCase(),
+  );
+
+  return (
+    <div className="mx-auto max-w-xl px-4 py-8">
+      <div className="space-y-5 rounded-2xl border border-border bg-card p-6 shadow-card sm:p-8">
+        <div className="space-y-1">
+          <h2 className="text-xl font-bold">بدء طلبية جديدة</h2>
+          <p className="text-sm text-muted-foreground">اختر الزبون من القائمة أو اكتب اسماً جديداً للبدء.</p>
+        </div>
+
+        <label className="block space-y-2">
+          <span className="text-sm font-medium">اسم الزبون</span>
+          <div className="relative">
+            <Search size={17} className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              autoComplete="off"
+              value={props.customerQuery}
+              onChange={(e) => {
+                props.setCustomerQuery(e.target.value);
+                props.setChosenCustomer('');
+              }}
+              placeholder="اكتب اسم الزبون…"
+              className="w-full rounded-lg border border-border bg-background p-3 pe-10 text-base outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+        </label>
+
+        {!props.chosenCustomer && props.customerQuery.trim() && (
+          <div className="max-h-60 space-y-1 overflow-auto rounded-lg border border-border p-1.5">
+            {matches.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => {
+                  props.setChosenCustomer(c.id);
+                  props.setCustomerQuery(c.name);
+                  props.setPhone(c.phone || '');
+                }}
+                className="block w-full rounded-md p-3 text-right transition hover:bg-muted"
+              >
+                <b>{c.name}</b>
+                {c.phone && <small className="block text-muted-foreground" dir="ltr">{c.phone}</small>}
+              </button>
+            ))}
+            {!exact && (
+              <p className="flex items-center gap-2 p-3 text-sm text-muted-foreground">
+                <Plus size={15} /> إنشاء زبون جديد باسم «{props.customerQuery.trim()}»
+              </p>
+            )}
+          </div>
+        )}
+
+        {props.chosenCustomer && (
+          <div className="flex items-center justify-between rounded-lg border border-primary/40 bg-primary/5 p-3">
+            <span className="text-sm">
+              الزبون المحدد: <b>{props.customers.find((c) => c.id === props.chosenCustomer)?.name || props.customerQuery}</b>
+            </span>
+            <button
+              onClick={() => {
+                props.setChosenCustomer('');
+                props.setCustomerQuery('');
+                props.setPhone('');
+              }}
+              className="text-sm font-medium text-primary underline"
+            >
+              تغيير
+            </button>
+          </div>
+        )}
+
+        <label className="block space-y-2">
+          <span className="text-sm font-medium">الهاتف (اختياري)</span>
+          <input
+            value={props.phone}
+            onChange={(e) => props.setPhone(e.target.value)}
+            inputMode="tel"
+            dir="ltr"
+            placeholder="05xxxxxxxx"
+            className="w-full rounded-lg border border-border bg-background p-3 text-left outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+          />
+        </label>
+
+        <button
+          onClick={() => props.startOrder()}
+          disabled={props.busy || (!props.chosenCustomer && !props.customerQuery.trim())}
+          className="w-full rounded-lg bg-primary p-3 text-base font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
+        >
+          بدء الطلبية
+        </button>
+        <p className="text-xs text-muted-foreground">
+          تُحفظ الكميات تلقائياً أثناء الإدخال. بعد حفظ الطلبية تنتقل مباشرةً إلى شاشة المراجعة والطباعة ضمن الرابط نفسه.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function OrderCart(props: EntryProps) {
+  const { current } = props;
+  if (!current) return null;
+  const items = [...current.items].sort((a, b) => a.sortOrder - b.sortOrder);
+  const estimate = props.orderEstimate(current);
+
+  const body = (
+    <>
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div className="min-w-0">
+          <p className="truncate font-bold">{current.customerName || 'زبون غير مسمى'}</p>
+          <p className="text-xs text-muted-foreground">
+            {items.length} صنف · {props.syncLabel(current.syncState)}
+          </p>
+        </div>
+        <button
+          onClick={() => props.setCartOpen(false)}
+          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted lg:hidden"
+          aria-label="إغلاق السلة"
+        >
+          <X size={18} />
+        </button>
+      </div>
+
+      <div className="max-h-[calc(100dvh-320px)] flex-1 overflow-auto px-2 py-2 lg:max-h-[calc(100dvh-260px)]">
+        {items.length === 0 ? (
+          <p className="px-2 py-10 text-center text-sm text-muted-foreground">
+            لم تُضف أصناف بعد. اختر صنفاً من القائمة لإضافته إلى الطلبية.
+          </p>
+        ) : (
+          <ul className="space-y-1.5">
+            {items.map((i) => {
+              const p = props.productById.get(i.productId);
+              return (
+                <li key={i.id} className="rounded-lg border border-border bg-background p-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="min-w-0 flex-1 text-sm font-semibold leading-snug">{i.productName}</p>
+                    <button
+                      onClick={() => p && props.setQuantity(p, 0)}
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-destructive hover:bg-destructive/10"
+                      aria-label={'حذف ' + i.productName}
+                      title="حذف الصنف"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <Stepper
+                      value={props.qtyDrafts[i.productId] ?? String(i.quantity)}
+                      onInput={(raw) => {
+                        props.setQtyDrafts((v) => ({ ...v, [i.productId]: raw }));
+                        if (p) props.setQuantity(p, toInt(raw));
+                      }}
+                      onBlur={() =>
+                        props.setQtyDrafts((v) => {
+                          const next = { ...v };
+                          delete next[i.productId];
+                          return next;
+                        })
+                      }
+                      onStep={(d) => p && props.stepQuantity(p, d)}
+                      label={i.productName}
+                    />
+                    {p && p.cartonPrice > 0 && (
+                      <span className="ms-auto text-xs tabular-nums text-muted-foreground" dir="ltr">
+                        {(p.cartonPrice * i.quantity).toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <BonusInput
+                      label="بونص كراتين"
+                      value={props.bonusDrafts[i.productId + ':bonusCartons'] ?? String(i.bonusCartons ?? 0)}
+                      onInput={(raw) => props.setBonusDrafts((v) => ({ ...v, [i.productId + ':bonusCartons']: raw }))}
+                      onCommit={(raw) => p && props.setBonus(p, 'bonusCartons', raw)}
+                    />
+                    <BonusInput
+                      label="بونص جالونات"
+                      value={props.bonusDrafts[i.productId + ':bonusGallons'] ?? String(i.bonusGallons ?? 0)}
+                      onInput={(raw) => props.setBonusDrafts((v) => ({ ...v, [i.productId + ':bonusGallons']: raw }))}
+                      onCommit={(raw) => p && props.setBonus(p, 'bonusGallons', raw)}
+                    />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      <div className="space-y-2 border-t border-border p-3">
+        {estimate > 0 && (
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">القيمة التقديرية</span>
+            <span className="font-semibold tabular-nums" dir="ltr">
+              {estimate.toFixed(2)}
+            </span>
+          </div>
+        )}
+        <div className="flex gap-2">
+          <button
+            onClick={() => props.closeOrder()}
+            className="flex-1 rounded-lg border border-border px-3 py-2.5 text-sm font-medium transition hover:bg-muted"
+          >
+            إغلاق
+          </button>
+          <button
+            disabled={props.busy || current.items.length === 0}
+            onClick={() => props.approveOrder()}
+            className="flex flex-[2] items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
+          >
+            {props.busy ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />} حفظ الطلبية
+          </button>
+        </div>
+        {estimate > 0 && (
+          <p className="text-center text-[11px] text-muted-foreground">القيمة تقديرية حسب أسعار الكاتالوج الحالية.</p>
+        )}
+      </div>
+    </>
+  );
+
+  return (
+    <>
+      {/* Desktop sticky panel */}
+      <aside className="no-print sticky top-[81px] hidden h-fit flex-col overflow-hidden rounded-xl border border-border bg-card shadow-card lg:flex">
+        {body}
+      </aside>
+
+      {/* Mobile bottom sheet */}
+      {props.cartOpen && (
+        <div className="no-print fixed inset-0 z-40 lg:hidden">
+          <div className="absolute inset-0 bg-black/40" onClick={() => props.setCartOpen(false)} />
+          <div className="absolute inset-x-0 bottom-0 flex max-h-[85dvh] flex-col rounded-t-2xl bg-card shadow-xl">
+            {body}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Review view
+// ────────────────────────────────────────────────────────────────────────────
+interface ReviewProps {
+  savedShown: LocalOrder[];
+  savedQuery: string;
+  setSavedQuery: (v: string) => void;
+  statusFilter: 'all' | LocalOrder['status'];
+  setStatusFilter: (v: 'all' | LocalOrder['status']) => void;
+  selected: Set<string>;
+  setSelected: React.Dispatch<React.SetStateAction<Set<string>>>;
+  toggleSelected: (id: string) => void;
+  expanded: Set<string>;
+  toggleExpanded: (id: string) => void;
+  loadSaved: () => void;
+  doPrint: (ids: string[]) => void;
+  startNew: () => void;
+  orderEstimate: (o: LocalOrder) => number;
+  totalUnits: (o: LocalOrder) => number;
+  statusLabel: (s: LocalOrder['status']) => string;
+  syncLabel: (s: LocalOrder['syncState']) => string;
+  resolveConflict: (id: string, c: 'local' | 'remote') => void;
+}
+
+function ReviewView(props: ReviewProps) {
+  const selectedVisible = props.savedShown.filter((o) => props.selected.has(o.id));
+  const allVisibleSelected = props.savedShown.length > 0 && props.savedShown.every((o) => props.selected.has(o.id));
+
+  const statuses: Array<'all' | LocalOrder['status']> = ['all', 'submitted', 'draft', 'cancelled'];
+
+  return (
+    <div className="mx-auto max-w-5xl space-y-4 px-4 py-4">
+      {/* Toolbar */}
+      <div className="no-print space-y-3 rounded-xl border border-border bg-card p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[200px] flex-1">
+            <Search size={17} className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={props.savedQuery}
+              onChange={(e) => props.setSavedQuery(e.target.value)}
+              placeholder="ابحث باسم الزبون أو رقم الطلبية…"
+              className="w-full rounded-lg border border-border bg-background p-2.5 pe-10 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+          <button
+            onClick={() => props.loadSaved()}
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2.5 text-sm font-medium transition hover:bg-muted"
+          >
+            <RefreshCw size={15} /> تحديث
+          </button>
+          <button
+            onClick={() => props.startNew()}
+            className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
+          >
+            <Plus size={15} /> طلبية جديدة
+          </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          {statuses.map((s) => (
+            <CategoryChip key={s} active={props.statusFilter === s} onClick={() => props.setStatusFilter(s)}>
+              {s === 'all' ? 'الكل' : props.statusLabel(s)}
+            </CategoryChip>
+          ))}
+        </div>
+
+        {/* Bulk / print row */}
+        <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+          <button
+            onClick={() =>
+              props.setSelected((prev) => {
+                if (allVisibleSelected) return new Set();
+                return new Set(props.savedShown.map((o) => o.id));
+              })
+            }
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm transition hover:bg-muted"
+          >
+            {allVisibleSelected ? <CheckSquare size={15} /> : <Square size={15} />}
+            {allVisibleSelected ? 'إلغاء التحديد' : 'تحديد الظاهر'}
+          </button>
+          <button
+            disabled={selectedVisible.length === 0}
+            onClick={() => props.doPrint(selectedVisible.map((o) => o.id))}
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm transition hover:bg-muted disabled:opacity-50"
+          >
+            <Printer size={15} /> طباعة المحدد ({selectedVisible.length})
+          </button>
+          <button
+            disabled={props.savedShown.length === 0}
+            onClick={() => props.doPrint(props.savedShown.map((o) => o.id))}
+            className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
+          >
+            <Printer size={15} /> طباعة الظاهر ({props.savedShown.length})
+          </button>
+        </div>
+      </div>
+
+      {/* List */}
+      {props.savedShown.length === 0 ? (
+        <div className="no-print rounded-xl border border-dashed border-border p-12 text-center text-muted-foreground">
+          لا توجد طلبيات مطابقة. احفظ طلبية من شاشة التسجيل لتظهر هنا.
+        </div>
+      ) : (
+        <div className="no-print space-y-2.5">
+          {props.savedShown.map((o) => (
+            <OrderRow
+              key={o.id}
+              order={o}
+              selected={props.selected.has(o.id)}
+              expanded={props.expanded.has(o.id)}
+              onToggleSelect={() => props.toggleSelected(o.id)}
+              onToggleExpand={() => props.toggleExpanded(o.id)}
+              onPrint={() => props.doPrint([o.id])}
+              estimate={props.orderEstimate(o)}
+              units={props.totalUnits(o)}
+              statusLabel={props.statusLabel}
+              syncLabel={props.syncLabel}
+              resolveConflict={props.resolveConflict}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OrderRow(props: {
+  order: LocalOrder;
+  selected: boolean;
+  expanded: boolean;
+  onToggleSelect: () => void;
+  onToggleExpand: () => void;
+  onPrint: () => void;
+  estimate: number;
+  units: number;
+  statusLabel: (s: LocalOrder['status']) => string;
+  syncLabel: (s: LocalOrder['syncState']) => string;
+  resolveConflict: (id: string, c: 'local' | 'remote') => void;
+}) {
+  const { order: o } = props;
+  return (
+    <article className={'rounded-xl border bg-card transition ' + (props.selected ? 'border-primary ring-1 ring-primary/30' : 'border-border')}>
+      <div className="flex items-center gap-3 p-3">
+        <button
+          onClick={props.onToggleSelect}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:bg-muted"
+          aria-label="تحديد الطلبية"
+        >
+          {props.selected ? <CheckSquare size={17} className="text-primary" /> : <Square size={17} />}
+        </button>
+
+        <button onClick={props.onToggleExpand} className="min-w-0 flex-1 text-right">
+          <div className="flex items-center gap-2">
+            <span className="truncate font-bold">{o.customerName || 'زبون غير مسمى'}</span>
+            <span
+              className={
+                'rounded-full px-2 py-0.5 text-[11px] font-medium ' +
+                (o.status === 'submitted'
+                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
+                  : o.status === 'cancelled'
+                    ? 'bg-destructive/15 text-destructive'
+                    : 'bg-muted text-muted-foreground')
+              }
+            >
+              {props.statusLabel(o.status)}
+            </span>
+            {o.syncState === 'conflict' && (
+              <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
+                تعارض
+              </span>
+            )}
+          </div>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {o.orderNumber ? 'طلبية #' + o.orderNumber : 'محلية'} · {fmtDate(o.createdAt)} · {o.items.length} صنف ·{' '}
+            {props.units} وحدة
+          </p>
+        </button>
+
+        <button
+          onClick={props.onPrint}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition hover:bg-muted"
+          aria-label="طباعة الطلبية"
+          title="طباعة هذه الطلبية"
+        >
+          <Printer size={16} />
+        </button>
+      </div>
+
+      {o.syncState === 'conflict' && (
+        <div className="px-3 pb-3">
+          <ConflictBanner order={o} resolveConflict={props.resolveConflict} />
+        </div>
+      )}
+
+      {props.expanded && (
+        <div className="border-t border-border p-3">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-muted-foreground">
+                  <th className="p-2 text-right font-medium">الصنف</th>
+                  <th className="p-2 text-center font-medium">الكمية</th>
+                  <th className="p-2 text-center font-medium">بونص كراتين</th>
+                  <th className="p-2 text-center font-medium">بونص جالونات</th>
+                </tr>
+              </thead>
+              <tbody>
+                {o.items.map((i) => (
+                  <tr key={i.id} className="border-t border-border">
+                    <td className="p-2">{i.productName}</td>
+                    <td className="p-2 text-center tabular-nums">{i.quantity}</td>
+                    <td className="p-2 text-center tabular-nums">{i.bonusCartons || 0}</td>
+                    <td className="p-2 text-center tabular-nums">{i.bonusGallons || 0}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {props.estimate > 0 && (
+            <p className="mt-2 text-end text-sm text-muted-foreground">
+              القيمة التقديرية:{' '}
+              <span className="font-semibold tabular-nums text-foreground" dir="ltr">
+                {props.estimate.toFixed(2)}
+              </span>
+            </p>
+          )}
+        </div>
+      )}
+    </article>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Shared presentational pieces
+// ────────────────────────────────────────────────────────────────────────────
+function CategoryChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={
+        'rounded-full border px-3 py-1 text-sm font-medium transition ' +
+        (active ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-card text-muted-foreground hover:bg-muted')
+      }
+    >
+      {children}
+    </button>
+  );
+}
+
+function Stepper(props: {
+  value: string;
+  onInput: (raw: string) => void;
+  onBlur: () => void;
+  onStep: (d: number) => void;
+  label: string;
+}) {
+  return (
+    <div className="grid grid-cols-[36px_minmax(0,1fr)_36px] items-center gap-1 rounded-lg border border-border bg-muted/40 p-0.5">
+      <button
+        aria-label={'زيادة كمية ' + props.label}
+        onClick={() => props.onStep(1)}
+        className="flex h-8 items-center justify-center rounded-md bg-card text-foreground transition hover:bg-background"
+        title="زيادة"
+      >
+        <Plus size={16} />
+      </button>
+      <input
+        aria-label={'كمية ' + props.label}
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        value={props.value === '0' ? '' : props.value}
+        placeholder="0"
+        onFocus={(e) => e.currentTarget.select()}
+        onChange={(e) => props.onInput(e.target.value)}
+        onBlur={props.onBlur}
+        className="h-8 w-full min-w-0 rounded-md border-0 bg-transparent text-center font-semibold tabular-nums outline-none"
+      />
+      <button
+        aria-label={'تقليل كمية ' + props.label}
+        onClick={() => props.onStep(-1)}
+        disabled={props.value === '0' || props.value === ''}
+        className="flex h-8 items-center justify-center rounded-md bg-card text-foreground transition hover:bg-background disabled:opacity-40"
+        title="تقليل"
+      >
+        <Minus size={16} />
+      </button>
+    </div>
+  );
+}
+
+function BonusInput(props: { label: string; value: string; onInput: (raw: string) => void; onCommit: (raw: string) => void }) {
+  return (
+    <label className="block text-[11px] font-medium text-muted-foreground">
+      {props.label}
+      <input
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        value={props.value === '0' ? '' : props.value}
+        placeholder="0"
+        onFocus={(e) => e.currentTarget.select()}
+        onChange={(e) => props.onInput(e.target.value)}
+        onBlur={(e) => props.onCommit(e.currentTarget.value)}
+        className="mt-1 w-full rounded-md border border-border bg-background p-1.5 text-center text-sm tabular-nums text-foreground outline-none transition focus:border-primary"
+      />
+    </label>
+  );
+}
+
+function ProductTile(props: {
+  product: Product;
+  item: LocalOrder['items'][number] | undefined;
+  qtyDraft: string | undefined;
+  onQtyInput: (raw: string) => void;
+  onQtyBlur: () => void;
+  onStep: (d: number) => void;
+}) {
+  const { product: p, item } = props;
+  const active = (item?.quantity ?? 0) > 0;
+  return (
+    <article
+      className={
+        'flex min-w-0 flex-col overflow-hidden rounded-xl border bg-card transition ' +
+        (active ? 'border-primary ring-1 ring-primary/30' : 'border-border')
+      }
+    >
+      <div className="relative flex h-24 items-center justify-center bg-muted/30 p-2">
+        {p.imageUrl ? (
+          <img src={p.imageUrl} alt={p.name} loading="lazy" className="h-full w-full object-contain" />
+        ) : (
+          <span className="text-center text-xs text-muted-foreground">لا توجد صورة</span>
+        )}
+        {active && (
+          <span className="absolute start-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+            <Check size={13} />
+          </span>
+        )}
+      </div>
+      <div className="flex flex-1 flex-col gap-1.5 p-2">
+        <p className="line-clamp-2 min-h-[2.5rem] text-sm font-semibold leading-snug">{p.name}</p>
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+          {p.size ? <span>{p.size}</span> : <span />}
+          {p.cartonPrice > 0 && (
+            <span className="tabular-nums" dir="ltr">
+              {p.cartonPrice.toFixed(2)}
+            </span>
+          )}
+        </div>
+        <Stepper
+          value={props.qtyDraft ?? String(item?.quantity ?? 0)}
+          onInput={props.onQtyInput}
+          onBlur={props.onQtyBlur}
+          onStep={props.onStep}
+          label={p.name}
+        />
+      </div>
+    </article>
+  );
+}
+
+function ConflictBanner(props: { order: LocalOrder; resolveConflict: (id: string, c: 'local' | 'remote') => void }) {
+  return (
+    <div className="space-y-2 rounded-lg border border-amber-500/50 bg-amber-500/5 p-3">
+      <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+        عُدّلت هذه الطلبية على جهاز آخر. اختر النسخة التي تريد الاحتفاظ بها؛ لن يُحذف أي تعديل تلقائياً.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={() => props.resolveConflict(props.order.id, 'local')}
+          className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-medium transition hover:bg-muted"
+        >
+          الاحتفاظ بتعديل هذا الجهاز
+        </button>
+        <button
+          onClick={() => props.resolveConflict(props.order.id, 'remote')}
+          className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-medium transition hover:bg-muted"
+        >
+          اعتماد نسخة الخادم
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Print
+// ────────────────────────────────────────────────────────────────────────────
+function PrintStyles() {
+  return (
+    <style>{`
+      @page { size: A4; margin: 10mm; }
+      @media print {
+        body * { visibility: hidden !important; }
+        #print-sheet, #print-sheet * { visibility: visible !important; }
+        #print-sheet { display: block !important; position: absolute; top: 0; right: 0; width: 100%; }
+        .no-print { display: none !important; }
+        .print-order { break-inside: avoid; page-break-inside: avoid; border: 1px solid #999; border-radius: 6px; padding: 10px 12px; margin: 0 0 10px; }
+        .print-order h2 { font-size: 13pt; margin: 0 0 4px; }
+        .print-order p { margin: 1px 0; font-size: 9.5pt; color: #333; }
+        .print-order table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+        .print-order th, .print-order td { text-align: right; border-bottom: 1px solid #ccc; padding: 4px 6px; font-size: 9.5pt; }
+        .print-order th { border-bottom: 1.5px solid #666; }
+        .print-order thead { display: table-header-group; }
+      }
+    `}</style>
+  );
+}
+
+function PrintSheet({ orders }: { orders: LocalOrder[] }) {
+  return (
+    <section id="print-sheet" dir="rtl" className="hidden">
+      {orders.map((o) => (
+        <article key={o.id} className="print-order">
+          <h2>شركة سردا — طلبية {o.orderNumber ? '#' + o.orderNumber : 'محلية'}</h2>
+          <p>الزبون: {o.customerName || 'غير محدد'}</p>
+          <p>التاريخ: {fmtDate(o.createdAt)}</p>
+          <table>
+            <thead>
+              <tr>
+                <th>الصنف</th>
+                <th>الكمية</th>
+                <th>بونص كراتين</th>
+                <th>بونص جالونات</th>
+              </tr>
+            </thead>
+            <tbody>
+              {o.items.map((i) => (
+                <tr key={i.id}>
+                  <td>{i.productName}</td>
+                  <td>{i.quantity}</td>
+                  <td>{i.bonusCartons || 0}</td>
+                  <td>{i.bonusGallons || 0}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </article>
+      ))}
+    </section>
+  );
 }
