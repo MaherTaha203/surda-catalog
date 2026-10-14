@@ -1401,7 +1401,9 @@ function PrintStyles() {
         /* thead reprints on every page the table spans → the order's header
            info (number + customer) and the column titles repeat on each page. */
         .print-order thead { display: table-header-group; }
-        .print-order thead .phead-cell { padding: 0 0 5px; border-bottom: 1.5px solid #666; }
+        /* Shade the whole header block so each order is set off from the next. */
+        .print-order thead th { background: #e4e9ef; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .print-order thead .phead-cell { padding: 5px 8px; border-bottom: 1.5px solid #666; }
         .print-order .phead { display: flex; align-items: baseline; gap: 10px; }
         .print-order .phead .pnum { font-weight: 700; font-size: 12pt; white-space: nowrap; }
         .print-order .phead .pcust { font-weight: 800; font-size: 14pt; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
