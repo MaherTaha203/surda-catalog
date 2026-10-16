@@ -1249,15 +1249,16 @@ function Stepper(props: {
   onStep: (d: number) => void;
   label: string;
 }) {
+  const empty = props.value === '0' || props.value === '';
   return (
-    <div className="grid grid-cols-[36px_minmax(0,1fr)_36px] items-center gap-1 rounded-lg border border-border bg-muted/40 p-0.5">
+    <div className="grid grid-cols-[42px_minmax(0,1fr)_42px] items-center gap-1.5">
       <button
         aria-label={'زيادة كمية ' + props.label}
         onClick={() => props.onStep(1)}
-        className="flex h-8 items-center justify-center rounded-md bg-card text-foreground transition hover:bg-background"
+        className="flex h-9 items-center justify-center rounded-lg bg-emerald-600 font-bold text-white shadow-sm transition hover:bg-emerald-700 active:scale-90"
         title="زيادة"
       >
-        <Plus size={16} />
+        <Plus size={18} strokeWidth={3} />
       </button>
       <input
         aria-label={'كمية ' + props.label}
@@ -1269,16 +1270,16 @@ function Stepper(props: {
         onFocus={(e) => e.currentTarget.select()}
         onChange={(e) => props.onInput(e.target.value)}
         onBlur={props.onBlur}
-        className="h-8 w-full min-w-0 rounded-md border-0 bg-transparent text-center font-semibold tabular-nums outline-none"
+        className="h-9 w-full min-w-0 rounded-lg border border-border bg-background text-center text-base font-bold tabular-nums outline-none transition focus:border-primary"
       />
       <button
         aria-label={'تقليل كمية ' + props.label}
         onClick={() => props.onStep(-1)}
-        disabled={props.value === '0' || props.value === ''}
-        className="flex h-8 items-center justify-center rounded-md bg-card text-foreground transition hover:bg-background disabled:opacity-40"
+        disabled={empty}
+        className="flex h-9 items-center justify-center rounded-lg bg-rose-600 font-bold text-white shadow-sm transition hover:bg-rose-700 active:scale-90 disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none"
         title="تقليل"
       >
-        <Minus size={16} />
+        <Minus size={18} strokeWidth={3} />
       </button>
     </div>
   );
@@ -1320,28 +1321,39 @@ function ProductTile(props: {
         (active ? 'border-primary ring-1 ring-primary/30' : 'border-border')
       }
     >
-      <div className="relative flex h-24 items-center justify-center bg-muted/30 p-2">
-        {p.imageUrl ? (
-          <img src={p.imageUrl} alt={p.name} loading="lazy" className="h-full w-full object-contain" />
-        ) : (
-          <span className="text-center text-xs text-muted-foreground">لا توجد صورة</span>
-        )}
-        {active && (
-          <span className="absolute start-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
-            <Check size={13} />
-          </span>
-        )}
-      </div>
-      <div className="flex flex-1 flex-col gap-1.5 p-2">
-        <p className="line-clamp-2 min-h-[2.5rem] text-sm font-semibold leading-snug">{p.name}</p>
-        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-          {p.size ? <span>{p.size}</span> : <span />}
-          {p.cartonPrice > 0 && (
-            <span className="tabular-nums" dir="ltr">
-              {p.cartonPrice.toFixed(2)}
+      {/* One tap on the image/name area adds one carton — fast entry. */}
+      <button
+        type="button"
+        onClick={() => props.onStep(1)}
+        className="flex flex-1 flex-col text-right"
+        title={'إضافة ' + p.name}
+        aria-label={'إضافة ' + p.name}
+      >
+        <div className="relative flex h-24 w-full items-center justify-center bg-muted/30 p-2">
+          {p.imageUrl ? (
+            <img src={p.imageUrl} alt={p.name} loading="lazy" className="h-full w-full object-contain" />
+          ) : (
+            <span className="text-center text-xs text-muted-foreground">لا توجد صورة</span>
+          )}
+          {active && (
+            <span className="absolute start-1.5 top-1.5 flex h-6 min-w-6 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-bold tabular-nums text-primary-foreground shadow">
+              {item?.quantity}
             </span>
           )}
         </div>
+        <div className="flex w-full flex-col gap-1.5 p-2 pb-0">
+          <p className="line-clamp-2 min-h-[2.5rem] text-sm font-semibold leading-snug">{p.name}</p>
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+            {p.size ? <span>{p.size}</span> : <span />}
+            {p.cartonPrice > 0 && (
+              <span className="tabular-nums" dir="ltr">
+                {p.cartonPrice.toFixed(2)}
+              </span>
+            )}
+          </div>
+        </div>
+      </button>
+      <div className="p-2 pt-1.5">
         <Stepper
           value={props.qtyDraft ?? String(item?.quantity ?? 0)}
           onInput={props.onQtyInput}
