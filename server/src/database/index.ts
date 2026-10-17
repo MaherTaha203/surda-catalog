@@ -16,6 +16,9 @@ import {
   PRODUCTS_INDEXES_DDL,
   PRODUCTS_MIGRATION_COLUMNS,
   SETTINGS_TABLE_DDL,
+  CUSTOMERS_TABLE_DDL,
+  ORDERS_TABLE_DDL,
+  ORDER_ITEMS_MIGRATION_COLUMNS,
 } from './schema.ts';
 
 /** Absolute path to the SQLite file. Override with CATALOG_DB_PATH. */
@@ -49,6 +52,8 @@ export function initDatabase(dbPath: string = DB_PATH): InitializedDatabase {
   db.exec(PRODUCTS_TABLE_DDL);
   db.exec(PRODUCTS_INDEXES_DDL);
   db.exec(SETTINGS_TABLE_DDL);
+  db.exec(CUSTOMERS_TABLE_DDL);
+  db.exec(ORDERS_TABLE_DDL);
 
   // Add columns introduced after the initial release to pre-existing databases.
   const existing = new Set(
